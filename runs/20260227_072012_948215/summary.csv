@@ -1,3 +1,0 @@
-task_name,model_id,step_id,request_count,success_count,success_rate,avg_latency_ms,p95_latency_ms,avg_total_tokens,p95_total_tokens,parse_rate,retry_count,cost_estimate
-ie_json,deepseek-v3,__task__,3,3,1.0,1.0,1.0,30.0,30.0,1.0,0,0.0
-ie_json,doubao-seed,__task__,3,3,1.0,1.0,1.0,30.0,30.0,1.0,0,0.0

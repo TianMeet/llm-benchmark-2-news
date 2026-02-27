@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+
+# Python cache/build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Local runtime artifacts
+.eval_cache/
+runs/*
+!runs/.gitkeep
+
+# IDE
+.vscode/
+.idea/
