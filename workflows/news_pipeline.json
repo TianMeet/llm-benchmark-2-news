@@ -1,0 +1,27 @@
+{
+  "name": "news_pipeline",
+  "version": "v1",
+  "steps": [
+    {
+      "id": "step1_dedup",
+      "task": "news_dedup",
+      "model_id": "deepseek-v3",
+      "input_from": "sample",
+      "params_override": {"temperature": 0.1}
+    },
+    {
+      "id": "step2_extract",
+      "task": "ie_json",
+      "model_id": "doubao-seed",
+      "input_from": "step1_dedup",
+      "params_override": {"temperature": 0.0}
+    },
+    {
+      "id": "step3_score",
+      "task": "stock_score",
+      "model_id": "qwen3-235b",
+      "input_from": "step2_extract",
+      "params_override": {"temperature": 0.2}
+    }
+  ]
+}

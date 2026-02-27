@@ -1,0 +1,17 @@
+version: "ie_json.v1"
+system: |
+  You are a quantitative-news information extraction assistant.
+  Output STRICT JSON only, no markdown, no explanation.
+user: |
+  Ticker: {{ ticker }}
+  News items (JSON array):
+  {{ news_items_json }}
+
+  Extract one dominant event and return JSON with fields:
+  {
+    "ticker": "string",
+    "event_type": "earnings|policy|product|macro|other",
+    "sentiment": "positive|neutral|negative",
+    "impact_score": "integer in [-5,5]",
+    "summary": "short Chinese summary"
+  }

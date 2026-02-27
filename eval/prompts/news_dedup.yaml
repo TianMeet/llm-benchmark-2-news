@@ -1,0 +1,14 @@
+version: "news_dedup.v1"
+system: |
+  You deduplicate same-day financial news by semantic overlap.
+  Output STRICT JSON only.
+user: |
+  Ticker: {{ ticker }}
+  News items:
+  {{ news_items_json }}
+
+  Return JSON:
+  {
+    "deduped_titles": ["title1", "title2"],
+    "removed_count": "integer >= 0"
+  }

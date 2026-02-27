@@ -1,0 +1,38 @@
+{
+  "active": "doubao-seed",
+  "models": {
+    "deepseek-v3": {
+      "provider": "openai_compatible",
+      "model": "pub_deepSeek-v3-latest_cloud",
+      "api_key": "${CAIJJ_API_KEY}",
+      "base_url": "http://ai.caijj.net",
+      "temperature": 0.1,
+      "max_tokens": 2048,
+      "timeout": 600,
+      "max_retries": 3,
+      "retry_delay": 5.0
+    },
+    "doubao-seed": {
+      "provider": "openai_compatible",
+      "model": "pub_doubao-seed-1.6_volcengine",
+      "api_key": "${CAIJJ_API_KEY}",
+      "base_url": "http://ai.caijj.net",
+      "temperature": 0.1,
+      "max_tokens": 2048,
+      "timeout": 120,
+      "max_retries": 2,
+      "retry_delay": 2.0
+    },
+    "qwen3-235b": {
+      "provider": "openai_compatible",
+      "model": "pri_qwen3-235b-a22b_shuhe-pai",
+      "api_key": "${CAIJJ_API_KEY}",
+      "base_url": "http://ai.caijj.net",
+      "temperature": 0.1,
+      "max_tokens": 2048,
+      "timeout": 600,
+      "max_retries": 3,
+      "retry_delay": 5.0
+    }
+  }
+}

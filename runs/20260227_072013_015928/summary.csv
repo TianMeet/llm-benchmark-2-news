@@ -1,0 +1,5 @@
+task_name,model_id,step_id,request_count,success_count,success_rate,avg_latency_ms,p95_latency_ms,avg_total_tokens,p95_total_tokens,parse_rate,retry_count,cost_estimate
+ie_json,doubao-seed,step2_extract,3,3,1.0,1.0,1.0,30.0,30.0,1.0,0,0.0
+news_dedup,deepseek-v3,step1_dedup,3,3,1.0,1.0,1.0,30.0,30.0,1.0,0,0.0
+news_pipeline,deepseek-v3+doubao-seed+qwen3-235b,__e2e__,3,3,1.0,3.0,3.0,90.0,90.0,1.0,0,0.0
+stock_score,qwen3-235b,step3_score,3,3,1.0,1.0,1.0,30.0,30.0,1.0,0,0.0

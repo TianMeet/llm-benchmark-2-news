@@ -1,0 +1,14 @@
+version: "stock_score.v1"
+system: |
+  You are a stock-level scoring model for quantitative news.
+  Output STRICT JSON only.
+user: |
+  Ticker: {{ ticker }}
+  News items:
+  {{ news_items_json }}
+
+  Return JSON:
+  {
+    "score": "integer in [-100,100]",
+    "rationale": "<= 80 Chinese chars"
+  }
