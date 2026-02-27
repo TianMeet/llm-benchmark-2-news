@@ -38,6 +38,7 @@ class BaseLLMClient(ABC):
         self.timeout = config.get("timeout", 30)
         self.max_retries = config.get("max_retries", 2)
         self.retry_delay = config.get("retry_delay", 2.0)
+        self.seed: int | None = config.get("seed", None)
 
     async def complete(self, messages: list[dict]) -> LLMResponse:
         """
@@ -57,20 +58,22 @@ class BaseLLMClient(ABC):
             except self.RATE_LIMIT_ERRORS as e:
                 last_error = str(e)
                 delay = self.retry_delay * (2 ** attempt) + 3.0
-                logger.warning(
-                    "Rate limited (attempt %d/%d), retrying in %.1fs: %s",
-                    attempt + 1, self.max_retries + 1, delay, e,
-                )
-                await asyncio.sleep(delay)
+                if attempt < self.max_retries:
+                    logger.warning(
+                        "Rate limited (attempt %d/%d), retrying in %.1fs: %s",
+                        attempt + 1, self.max_retries + 1, delay, e,
+                    )
+                    await asyncio.sleep(delay)
 
             except self.RETRYABLE_ERRORS as e:
                 last_error = str(e)
                 delay = self.retry_delay * (2 ** attempt)
-                logger.warning(
-                    "API error (attempt %d/%d), retrying in %.1fs: %s",
-                    attempt + 1, self.max_retries + 1, delay, e,
-                )
-                await asyncio.sleep(delay)
+                if attempt < self.max_retries:
+                    logger.warning(
+                        "API error (attempt %d/%d), retrying in %.1fs: %s",
+                        attempt + 1, self.max_retries + 1, delay, e,
+                    )
+                    await asyncio.sleep(delay)
 
             except self.NON_RETRYABLE_ERRORS as e:
                 latency_ms = (time.perf_counter() - t0) * 1000
