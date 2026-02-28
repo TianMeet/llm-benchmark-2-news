@@ -18,85 +18,86 @@ flowchart TB
     %% ─────────── 输入层 ───────────
     subgraph INPUT["  📥 INPUT — 输入层  "]
         direction LR
-        CLI["🖥️ CLI\npython -m bench.cli.runner"]
-        DS["📄 Dataset\n*.jsonl"]
-        WF_YAML["📋 Workflow Spec\nnews_pipeline.yaml"]
-        REG_YAML["⚙️ Model Registry\nllm_providers.yaml"]
+        CLI["🖥️ CLI · python -m bench.cli.runner"]
+        DS["📄 Dataset · *.jsonl"]
+        WF_YAML["📋 Workflow Spec · news_pipeline.yaml"]
+        REG_YAML["⚙️ Model Registry · llm_providers.json (default)"]
     end
 
     %% ─────────── 编排层 ───────────
     subgraph ORCH["  🎛️ ORCHESTRATOR — 编排层 (bench/)  "]
         direction TB
-        RUNNER["🏃 Runner\ncli/runner.py\n单任务 / workflow 入口"]
-        WFL["🔀 WorkflowLoader\nworkflow.py\nstep 依赖 & input_from"]
-        REG["📦 ModelRegistry\nregistry.py\n模型注册 + 成本估算"]
-        GATE["🚪 LLMGateway\nexecution/gateway.py\n统一调用门面"]
-        CACHE["💾 EvalCache\nio/cache.py\nmodel+params+messages 键"]
-        MET["📊 Metrics\nmetrics/aggregate.py\naggregate_records()"]
-        REP["📝 Reporter\nreporting/reporter.py\nMarkdownReporter"]
+        RUNNER["🏃 Runner · cli/runner.py · 单任务 / workflow 入口"]
+        WFL["🔀 WorkflowLoader · workflow.py · step 依赖 & input_from"]
+        REG["📦 ModelRegistry · registry.py · 模型注册 + 成本估算"]
+        GATE["🚪 LLMGateway · execution/gateway.py · 统一调用门面"]
+        CACHE["💾 EvalCache · io/cache.py · model+params+messages 键"]
+        MET["📊 Metrics · metrics/aggregate.py · aggregate_records()"]
+        REP["📝 Reporter · reporting/reporter.py · MarkdownReporter"]
+        ERR["🧭 Error Taxonomy · contracts/exceptions.py · 结构化错误元数据"]
 
         subgraph TASKS["  任务插件层 (bench/tasks/)  "]
             direction LR
-            T_BASE["🔧 EvalTask\nbase.py\n抽象基类"]
-            T_IE["📌 Task YAML\nie_json.yaml"]
-            T_STOCK["📈 Task YAML\nstock_score.yaml"]
-            T_DEDUP["🗞️ Task YAML\nnews_dedup.yaml"]
-            T_GEN["⚡ GenericTask\ngeneric.py"]
+            T_BASE["🔧 EvalTask · base.py · 抽象基类"]
+            T_IE["📌 Task YAML · ie_json.yaml"]
+            T_STOCK["📈 Task YAML · stock_score.yaml"]
+            T_DEDUP["🗞️ Task YAML · news_dedup.yaml"]
+            T_GEN["⚡ GenericTask · generic.py"]
         end
     end
 
     %% ─────────── 模型层 ───────────
     subgraph MODEL["  🤖 MODEL LAYER — 模型层 (llm_core/)  "]
         direction TB
-        CLIENT_F["🏭 LLM Client Factory\nbase_client.py"]
-        OAI["🔌 OpenAICompatibleClient\nopenai_client.py"]
-        PROMPT["✏️ PromptRenderer\nprompt_renderer.py\nJinja2 渲染"]
-        PARSER["🔍 ResponseParser\nresponse_parser.py"]
-        BATCH["⚙️ BatchHelper\nbatch.py"]
+        CLIENT_F["🏭 LLM Client Factory · base_client.py"]
+        OAI["🔌 OpenAICompatibleClient · openai_client.py"]
+        PROMPT["✏️ PromptRenderer · prompt_renderer.py · Jinja2 渲染"]
+        PARSER["🔍 ResponseParser · response_parser.py"]
+        BATCH["⚙️ BatchHelper · batch.py"]
     end
 
     %% ─────────── 存储层 ───────────
     subgraph STORE_L["  🗄️ STORE — 存储层 (bench/)  "]
         direction LR
-        RSTORE["📁 RunStore\nio/store.py\n产物读写抽象"]
+        RSTORE["📁 RunStore · io/store.py · 产物读写抽象"]
         DATA_DIR["📂 runs/{timestamp}/"]
     end
 
     %% ─────────── 外部 API ───────────
     subgraph APIS["  🌐 外部 LLM API  "]
         direction LR
-        DEEPSEEK["DeepSeek\nAPI"]
-        KIMI["Kimi\n月之暗面"]
-        GPT["OpenAI\ngpt-4o etc."]
-        OTHERS["其他\nOpenAI-Compatible"]
+        DEEPSEEK["DeepSeek · API"]
+        KIMI["Kimi · 月之暗面"]
+        GPT["OpenAI · gpt-4o etc."]
+        OTHERS["其他 · OpenAI-Compatible"]
     end
 
     %% ─────────── 输出产物 ───────────
     subgraph OUTPUT["  📤 OUTPUT — 输出产物  "]
         direction LR
-        O_CFG["📄 config.json\n运行配置快照"]
-        O_META["🧾 run_meta.json\n运行元信息"]
-        O_DFP["🧬 dataset_fingerprint.json\n数据集指纹"]
-        O_MSNAP["🤖 model_snapshot.json\n模型参数快照(脱敏)"]
-        O_RES["📊 results.jsonl\n逐条结果 v1"]
-        O_SUM["📋 summary.csv\n聚合统计 v1"]
-        O_RPT["📝 report.md\n可读报告"]
+        O_CFG["📄 config.json · 运行配置快照"]
+        O_META["🧾 run_meta.json · 运行元信息"]
+        O_DFP["🧬 dataset_fingerprint.json · 数据集指纹"]
+        O_MSNAP["🤖 model_snapshot.json · 模型参数快照(脱敏)"]
+        O_RES["📊 results.jsonl · 逐条结果 v1"]
+        O_SUM["📋 summary.csv · 聚合统计 v1"]
+        O_RPT["📝 report.md · 可读报告"]
     end
 
     %% ─────────── 配置文件 ───────────
     subgraph CONFIGS["  📁 CONFIGS  "]
         direction LR
-        C_PROV["llm_providers.yaml\n/json"]
-        C_PROMPT["prompts/\n*.yaml"]
-        C_ENV[".env\nAPI Keys"]
+        C_PROV["llm_providers.yaml · /json"]
+        C_PROMPT["prompts/ · *.yaml"]
+        C_ENV[".env · API Keys"]
     end
 
     %% ─────────── 数据集 ───────────
     subgraph DATASETS["  📂 DATASETS  "]
         direction LR
-        D_BENCH["benchmark_news\n.jsonl"]
-        D_DEMO["demo_news\n.jsonl"]
-        D_EVAL["news_summary_eval\n.jsonl"]
+        D_BENCH["benchmark_news · .jsonl"]
+        D_DEMO["demo_news · .jsonl"]
+        D_EVAL["news_summary_eval · .jsonl"]
     end
 
     %% ─────────── 连接关系 ───────────
@@ -110,6 +111,7 @@ flowchart TB
     RUNNER --> MET
     RUNNER --> REP
     RUNNER --> RSTORE
+    RUNNER --> ERR
 
     T_BASE --> T_IE & T_STOCK & T_DEDUP & T_GEN
 
@@ -185,6 +187,7 @@ sequenceDiagram
     R->>S: append_result(workflow_e2e row)
   end
 
+  Note over R: workflow 并发采用流式回收(FIRST_COMPLETED) · 避免全量 gather 带来的内存峰值
   R->>R: aggregate_records()
   R->>S: write_summary(summary.csv)
   R->>S: generate_report(report.md)
@@ -197,10 +200,12 @@ sequenceDiagram
 3. workflow 依赖关系通过 `input_from` + 上游 `parse_success` 控制，失败会写入 `skipped` 记录并继续执行后续样本。
 4. 当前并发能力：
    - task 模式支持按模型并发（`--concurrency`，模型级 semaphore）。
-   - workflow 模式支持样本级并发（`--workflow-concurrency`），单样本内 step 仍保持顺序依赖。
+   - workflow 模式支持样本级并发（`--workflow-concurrency`），单样本内 step 仍保持顺序依赖，且采用流式回收避免全量 `gather` 的 OOM 风险。
 5. 缓存命中粒度合理：键由 `model + params + messages + sample_cache_id` 组成，能覆盖 task/workflow 的重复调用复用。
-6. `LLMGateway` 已对相同 `model_id + params_override` 复用 client，降低重复建连开销。
-7. 运行产物已带版本契约：`results.schema_version=result_row.v1`、`summary.schema_version=summary_row.v1`，并在 `run_meta.json` 中记录运行环境与版本字段。
+6. `LLMGateway` 已对相同 `model_id + params_override` 复用 client，降低重复建连开销；重试退避引入 jitter，缓解限流惊群。
+7. 错误处理采用结构化异常与错误元数据（`error_type/error_stage/error_code`），报告可按错误类型聚合。
+8. 运行产物已带版本契约：`results.schema_version=result_row.v1`、`summary.schema_version=summary_row.v1`，并在 `run_meta.json` 中记录运行环境与版本字段。
+9. 任务支持 `default_params`（如 `response_format: {type: json_object}`）并透传到模型调用。
 
 ## 4. 建议的下一步演进
 
