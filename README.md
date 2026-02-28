@@ -63,7 +63,8 @@ pip install -r requirements-dev.txt
 python -m bench.cli.runner --task ie_json --dataset datasets/demo_news.jsonl --models deepseek-chat,gpt-4o-mini --out runs/
 ```
 
-说明：`--models` 需填写你 `configs/llm_providers.yaml` 中实际存在的 `model_id`。
+说明：`--models` 需填写你 `configs/llm_providers.json` 中实际存在的 `model_id`。
+默认模型注册表为 `configs/llm_providers.json`，若要使用 YAML 请显式传 `--model-registry configs/llm_providers.yaml`。
 
 ### 2) workflow 多模型协作评测
 

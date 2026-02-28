@@ -221,7 +221,7 @@ def main() -> None:
             "省略时回退到 registry 中的 active 模型"
         ),
     )
-    parser.add_argument("--model-registry", default="configs/llm_providers.yaml")
+    parser.add_argument("--model-registry", default="configs/llm_providers.json")
     parser.add_argument("--out", default="runs/")
     parser.add_argument("--params", default=None, help='JSON override, e.g. {"temperature":0.2}')
     parser.add_argument("--repeats", type=int, default=1)

@@ -61,7 +61,10 @@ class ModelRegistry:
     def get(self, model_id: str) -> ModelSpec:
         """按 model_id 获取模型配置，不存在则抛错。"""
         if model_id not in self._models:
-            raise ValueError(f"Unknown model_id '{model_id}'. Available: {self.list_model_ids()}")
+            raise ValueError(
+                f"Unknown model_id '{model_id}' in registry '{self.registry_path}'. "
+                f"Available: {self.list_model_ids()}"
+            )
         return self._models[model_id]
 
     def resolve_config(self, model_id: str, params_override: dict[str, Any] | None = None) -> dict[str, Any]:
