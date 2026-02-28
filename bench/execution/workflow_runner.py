@@ -188,6 +188,7 @@ def _build_workflow_e2e_row(
     model_id: str,
     params: dict[str, Any],
     success: bool,
+    parse_applicable: bool,
     parse_success: bool,
     latency_ms: float,
     total_tokens: int,
@@ -198,7 +199,7 @@ def _build_workflow_e2e_row(
     error_message = "" if success else "workflow_step_failed"
     fields = derive_error_fields(
         success=success,
-        parse_applicable=True,
+        parse_applicable=parse_applicable,
         parse_success=parse_success,
         error_message=error_message,
     )
@@ -215,7 +216,7 @@ def _build_workflow_e2e_row(
         params=params,
         success=success,
         error=error_message,
-        parse_applicable=True,
+        parse_applicable=parse_applicable,
         parse_success=parse_success,
         latency_ms=round(latency_ms, 2),
         prompt_tokens=0,
@@ -275,6 +276,7 @@ async def run_workflow_mode(
         e2e_retry = 0
         e2e_cost = 0.0
         final_output: dict[str, Any] | None = None
+        last_step_parse_applicable = True
 
         for step in workflow.steps:
             # 解析最终使用的 model_id：CLI step_model_map > 步骤显式声明 > default_model_id（$active 回退）
@@ -297,7 +299,13 @@ async def run_workflow_mode(
                 step_input = sample
             else:
                 prev = step_outputs.get(step.input_from)
-                if prev is None or not prev.get("parse_success"):
+                # 上游失败判定：上游缺失、上游调用失败、或上游需要解析但解析失败
+                upstream_failed = (
+                    prev is None
+                    or not prev.get("success")
+                    or (prev.get("parse_applicable", True) and not prev.get("parse_success"))
+                )
+                if upstream_failed:
                     reason = (
                         f"upstream_{step.input_from}_parse_failed"
                         if prev is not None
@@ -325,11 +333,12 @@ async def run_workflow_mode(
                     )
                     store.append_result(skip_row)
                     sample_records.append(skip_row)
-                    step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False}
+                    step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False, "parse_applicable": task.parse_applicable}
                     final_output = None
                     e2e_success = False
                     continue
-                step_input = prev["parsed"]
+                # 上游 parse_applicable=False 时，传递 raw 内容作为输入
+                step_input = prev["parsed"] if prev.get("parse_applicable", True) else prev.get("raw", "")
 
             try:
                 if gateway.mock:
@@ -357,7 +366,7 @@ async def run_workflow_mode(
                 )
                 store.append_result(step_row)
                 sample_records.append(step_row)
-                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False}
+                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False, "parse_applicable": task.parse_applicable}
                 final_output = None
                 e2e_success = False
                 continue
@@ -390,7 +399,7 @@ async def run_workflow_mode(
                 )
                 store.append_result(step_row)
                 sample_records.append(step_row)
-                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False}
+                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False, "parse_applicable": task.parse_applicable}
                 final_output = None
                 e2e_success = False
                 continue
@@ -430,6 +439,7 @@ async def run_workflow_mode(
             e2e_retry += call.retry_count
             e2e_cost += cost
             final_output = parsed
+            last_step_parse_applicable = task.parse_applicable
 
             step_row = _build_workflow_step_row(
                 run_id=run_id,
@@ -467,6 +477,7 @@ async def run_workflow_mode(
                 "raw": call.content,
                 "success": call.success,
                 "parse_success": parse_success,
+                "parse_applicable": task.parse_applicable,
             }
 
         # 端到端汇总行用于整体效果回归与版本对比。
@@ -481,7 +492,8 @@ async def run_workflow_mode(
             ),
             params=global_params,
             success=e2e_success,
-            parse_success=final_output is not None,
+            parse_applicable=last_step_parse_applicable,
+            parse_success=final_output is not None if last_step_parse_applicable else False,
             latency_ms=e2e_latency,
             total_tokens=e2e_tokens,
             retry_count=e2e_retry,

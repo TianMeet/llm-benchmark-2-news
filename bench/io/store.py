@@ -22,10 +22,13 @@ __all__ = ["RunStore"]
 
 import csv
 import json
+import logging
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class RunStore:
@@ -155,13 +158,21 @@ class RunStore:
         """加载已完成记录键，键格式为(sample_id, task_name, step_id, model_id, repeat_idx)。"""
         done: set[tuple[str, str, str, str, int]] = set()
         for row in self.load_result_rows():
+            try:
+                repeat_idx = int(row.get("repeat_idx", 0))
+            except (ValueError, TypeError):
+                logger.warning(
+                    "invalid repeat_idx %r in row sample_id=%s, defaulting to 0",
+                    row.get("repeat_idx"), row.get("sample_id", "?"),
+                )
+                repeat_idx = 0
             done.add(
                 (
                     str(row.get("sample_id", "")),
                     str(row.get("task_name", "")),
                     str(row.get("step_id", "")),
                     str(row.get("model_id", "")),
-                    int(row.get("repeat_idx", 0)),
+                    repeat_idx,
                 )
             )
         return done

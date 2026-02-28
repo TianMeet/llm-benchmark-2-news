@@ -27,3 +27,8 @@ runs/*
 # IDE
 .vscode/
 .idea/
+
+# Data files (generated/crawled)
+# - xuangubao.db: 选股宝板块数据（可通过 scripts/fetch_xuangubao_data.py 重新爬取）
+# - 其他运行时生成的数据文件
+data/

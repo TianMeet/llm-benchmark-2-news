@@ -18,21 +18,27 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    """读取 JSONL 文件为字典列表。"""
+    """读取 JSONL 文件为字典列表，跳过损坏行。"""
     if not path.exists():
         return []
     rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = line.strip()
         if not line:
             continue
-        rows.append(json.loads(line))
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            logger.warning("skipping malformed JSON at %s:%d", path, lineno)
     return rows
 
 
