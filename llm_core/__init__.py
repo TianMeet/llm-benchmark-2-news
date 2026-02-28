@@ -36,17 +36,34 @@ except ModuleNotFoundError:  # pragma: no cover
     OpenAICompatibleClient = None  # type: ignore[assignment]
 
 
+# ── Provider 注册表 ──────────────────────────────────────────────────────
+# 新增 provider 只需在此处注册，无需修改工厂函数本身（开闭原则）。
+# 键名与 llm_providers.yaml 中 provider 字段对应。
+_PROVIDER_REGISTRY: dict[str, type] = {}
+
+if OpenAICompatibleClient is not None:
+    _PROVIDER_REGISTRY["openai_compatible"] = OpenAICompatibleClient
+    # 兼容别名
+    _PROVIDER_REGISTRY["openai"] = OpenAICompatibleClient
+
+
 def create_llm_client(config: dict) -> BaseLLMClient:
     """
     根据配置创建 LLM 客户端实例。
 
-    所有 provider 统一使用 OpenAI 兼容协议（openai SDK）。
+    provider 字段决定使用哪个客户端类；默认 "openai_compatible"。
+    扩展新 provider 只需向 _PROVIDER_REGISTRY 注册，符合开闭原则。
     """
-    if OpenAICompatibleClient is None:
-        raise ModuleNotFoundError(
-            "openai package is required to create LLM client. Install with: pip install openai"
+    provider = str(config.get("provider", "openai_compatible"))
+    client_cls = _PROVIDER_REGISTRY.get(provider)
+    if client_cls is None:
+        available = sorted(_PROVIDER_REGISTRY.keys())
+        raise ValueError(
+            f"Unknown provider '{provider}'. "
+            f"Available providers: {available}. "
+            f"Register new providers via llm_core._PROVIDER_REGISTRY."
         )
-    return OpenAICompatibleClient(config)
+    return client_cls(config)
 
 
 __all__ = [

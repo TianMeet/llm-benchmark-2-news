@@ -9,6 +9,48 @@ from pathlib import Path
 import yaml
 
 _ENV_VAR_PATTERN = re.compile(r'\$\{(\w+)\}')
+_DOTENV_LOADED = False
+
+
+def _parse_dotenv_line(line: str) -> tuple[str, str] | None:
+    """解析 .env 单行，支持 `export KEY=VALUE` 与引号值。"""
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    if stripped.startswith("export "):
+        stripped = stripped[len("export "):].strip()
+    if "=" not in stripped:
+        return None
+    key, raw_value = stripped.split("=", 1)
+    key = key.strip()
+    if not key:
+        return None
+    value = raw_value.strip()
+    if len(value) >= 2 and ((value[0] == value[-1] == '"') or (value[0] == value[-1] == "'")):
+        value = value[1:-1]
+    return key, value
+
+
+def _load_dotenv_file(path: Path, *, override: bool = False) -> None:
+    """从指定文件加载环境变量。"""
+    if not path.exists() or not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parsed = _parse_dotenv_line(line)
+        if not parsed:
+            continue
+        key, value = parsed
+        if override or key not in os.environ:
+            os.environ[key] = value
+
+
+def _ensure_dotenv_loaded() -> None:
+    """懒加载 .env（默认当前工作目录）。"""
+    global _DOTENV_LOADED
+    if _DOTENV_LOADED:
+        return
+    _load_dotenv_file(Path.cwd() / ".env", override=False)
+    _DOTENV_LOADED = True
 
 
 def _resolve_env_vars(value):
@@ -19,6 +61,7 @@ def _resolve_env_vars(value):
     - dict/list: 递归处理
     - 其他类型: 原样返回
     """
+    _ensure_dotenv_loaded()
     if isinstance(value, str):
         def _replace(match):
             var_name = match.group(1)
@@ -42,6 +85,8 @@ def load_yaml(config_path: str | Path) -> dict:
     config_path = Path(config_path)
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
+    # 优先加载配置文件同级 .env，覆盖 cwd 默认行为的目录差异。
+    _load_dotenv_file(config_path.parent / ".env", override=False)
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
     return _resolve_env_vars(config)

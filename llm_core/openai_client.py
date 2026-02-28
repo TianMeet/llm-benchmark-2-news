@@ -40,12 +40,15 @@ class OpenAICompatibleClient(BaseLLMClient):
     async def _do_complete(self, messages: list[dict]) -> LLMResponse:
         """执行单次 Chat Completions API 调用。"""
         t0 = time.perf_counter()
-        response = await self.client.chat.completions.create(
+        kwargs: dict = dict(
             model=self.model,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
             messages=messages,
         )
+        if self.seed is not None:
+            kwargs["seed"] = self.seed
+        response = await self.client.chat.completions.create(**kwargs)
         latency_ms = (time.perf_counter() - t0) * 1000
 
         text = response.choices[0].message.content if response.choices else ""

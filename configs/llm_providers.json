@@ -1,6 +1,68 @@
 {
-  "active": "doubao-seed",
+  "active": "kimi-personal",
   "models": {
+    "kimi-personal": {
+      "provider": "openai_compatible",
+      "model": "kimi-k2.5",
+      "api_key": "${MOONSHOT_API_KEY}",
+      "base_url": "https://api.moonshot.cn/v1",
+      "temperature": 1,
+      "max_tokens": 512,
+      "timeout": 120,
+      "max_retries": 3,
+      "retry_delay": 3.0,
+      "concurrency": 20,
+      "seed": 42
+    },
+    "gpt-4o-mini": {
+      "provider": "openai_compatible",
+      "model": "gpt-4o-mini",
+      "api_key": "${OPENAI_API_KEY}",
+      "base_url": "https://api.openai.com/v1",
+      "temperature": 0,
+      "max_tokens": 2048,
+      "timeout": 60,
+      "max_retries": 3,
+      "retry_delay": 2.0,
+      "seed": 42,
+      "price_config": {
+        "input_per_1k": 0.00015,
+        "output_per_1k": 0.0006
+      }
+    },
+    "deepseek-personal": {
+      "provider": "openai_compatible",
+      "model": "deepseek-chat",
+      "api_key": "${DEEPSEEK_API_KEY}",
+      "base_url": "https://api.deepseek.com",
+      "temperature": 0,
+      "max_tokens": 512,
+      "timeout": 120,
+      "max_retries": 3,
+      "retry_delay": 3.0,
+      "seed": 42,
+      "concurrency": 0,
+      "price_config": {
+        "input_per_1k": 0.00027,
+        "output_per_1k": 0.0011
+      }
+    },
+    "deepseek-r1-personal": {
+      "provider": "openai_compatible",
+      "model": "deepseek-reasoner",
+      "api_key": "${DEEPSEEK_API_KEY}",
+      "base_url": "https://api.deepseek.com",
+      "temperature": 0.6,
+      "max_tokens": 4096,
+      "timeout": 300,
+      "max_retries": 3,
+      "retry_delay": 5.0,
+      "concurrency": 0,
+      "price_config": {
+        "input_per_1k": 0.00055,
+        "output_per_1k": 0.00219
+      }
+    },
     "deepseek-v3": {
       "provider": "openai_compatible",
       "model": "pub_deepSeek-v3-latest_cloud",

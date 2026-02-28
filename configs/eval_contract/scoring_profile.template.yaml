@@ -1,0 +1,61 @@
+# 统一评分配置模板（按答案类型映射指标）
+
+version: v1
+
+normalization:
+  lowercase: true
+  trim_whitespace: true
+  collapse_spaces: true
+  unit_aliases:
+    percent: ["%", "pct", "percentage"]
+
+scorers:
+  choice:
+    primary_metric: exact_match
+    metrics:
+      - type: exact_match
+        name: choice_acc
+        pred_field: value
+        label_field: value
+
+  number:
+    primary_metric: value_within_tol
+    metrics:
+      - type: numeric_error
+        name: value
+        pred_field: value
+        label_field: value
+        tolerance: 0.01
+
+  list:
+    primary_metric: list_f1
+    metrics:
+      - type: list_overlap
+        name: list
+        pred_field: items
+        label_field: items
+        normalize: true
+
+  text:
+    primary_metric: rouge1
+    metrics:
+      - type: reference_rouge
+        output_field: value
+        reference_field: gt_value
+
+  reasoning:
+    primary_metric: final_answer_acc
+    metrics:
+      - type: exact_match
+        name: final_answer_acc
+        pred_field: final_answer
+        label_field: gt_final_answer
+      - type: reasoning_consistency
+        name: reasoning
+        final_answer_field: final_answer
+        support_fields: [steps, claims, rationale]
+      - type: claim_evidence_overlap
+        name: evidence
+        claims_field: claims
+        label_field: gt_evidence_ids
+        claim_evidence_key: evidence

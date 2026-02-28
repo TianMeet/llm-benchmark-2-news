@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CanonicalAnswer",
+  "type": "object",
+  "required": [
+    "task_id",
+    "sample_id",
+    "answer_type",
+    "prediction",
+    "ground_truth",
+    "meta"
+  ],
+  "properties": {
+    "task_id": {
+      "type": "string"
+    },
+    "sample_id": {
+      "type": "string"
+    },
+    "answer_type": {
+      "type": "string",
+      "enum": [
+        "choice",
+        "number",
+        "list",
+        "text",
+        "reasoning"
+      ]
+    },
+    "prediction": {
+      "type": "object"
+    },
+    "ground_truth": {
+      "type": "object"
+    },
+    "meta": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "scorer_version"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string"
+        },
+        "prompt_version": {
+          "type": "string"
+        },
+        "scorer_version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

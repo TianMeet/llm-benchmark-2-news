@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["EvalCache"]
+
 import hashlib
 import json
 import logging

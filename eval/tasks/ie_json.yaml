@@ -1,0 +1,42 @@
+name: ie_json
+version: v1
+prompt_template: ie_json       # 引用 eval/prompts/ie_json.yaml
+
+# sample 中需要序列化为 JSON 字符串的字段
+# 会自动生成 {field}_json 变量注入模板
+# workflow 模式下优先从 context["input"] 取值
+serialize_fields:
+  - news_items
+
+parse_schema:
+  - field: ticker
+    type: str
+    default: ""
+  - field: event_type
+    type: enum
+    values: [earnings, policy, product, macro, other]
+    default: other
+  - field: sentiment
+    type: enum
+    values: [positive, neutral, negative]
+    default: neutral
+  - field: impact_score
+    type: int
+    default: 0
+    lo: -5
+    hi: 5
+  - field: summary
+    type: str
+    default: ""
+
+# mock_response: Gateway mock 模式返回的静态内容（免除在 Gateway 里硬编码任务名）
+mock_response:
+  ticker: UNKNOWN
+  event_type: other
+  sentiment: neutral
+  impact_score: 0
+  summary: mock
+
+metrics:
+  - type: field_completeness
+    fields: [ticker, event_type, sentiment, impact_score, summary]

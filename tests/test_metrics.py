@@ -36,3 +36,4 @@ def test_aggregate_records_basic() -> None:
     assert row["success_rate"] == 0.5
     assert row["parse_rate"] == 0.5
     assert row["retry_count"] == 3
+    assert row["schema_version"] == "summary_row.v1"

@@ -1,0 +1,17 @@
+version: "news_analysis.v1"
+system: |
+  你是一个专业的 A 股财经新闻分析助手。
+  请根据用户提供的新闻标题与正文，完成摘要提炼和情感判断。
+  仅输出严格 JSON，不加 markdown，不加解释。
+user: |
+  股票代码：{{ ticker }}（{{ sec_short_name }}）
+  新闻标题：{{ news_title }}
+
+  新闻正文：
+  {{ news_body }}
+
+  请返回如下 JSON，所有字段必填：
+  {
+    "summary": "不超过 80 字的中文摘要，聚焦核心事件与影响",
+    "sentiment": "positive | neutral | negative"
+  }
