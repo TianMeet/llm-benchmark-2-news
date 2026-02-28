@@ -29,4 +29,4 @@ class PromptStore:
             path = self.prompt_dir / f"{template_name}.yaml"
             self._renderers[template_name] = PromptRenderer(str(path), enable_few_shot=False)
         renderer = self._renderers[template_name]
-        return renderer.render(**kwargs), str(renderer.version)
+        return renderer.render_with_version(**kwargs)

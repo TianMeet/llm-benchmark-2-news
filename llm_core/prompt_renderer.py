@@ -83,3 +83,11 @@ class PromptRenderer:
         messages.append({"role": "user", "content": user_content})
 
         return messages
+
+    def render_with_version(self, **kwargs) -> tuple[list[dict], str]:
+        """渲染 messages 并返回 ``(messages, prompt_version)`` 元组。
+
+        等价于 ``(self.render(**kwargs), self.version)``，方便与
+        ``build_prompt`` 等需要 ``tuple[list[dict], str]`` 的接口保持一致。
+        """
+        return self.render(**kwargs), str(self.version)

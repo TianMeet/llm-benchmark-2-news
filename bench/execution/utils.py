@@ -122,13 +122,27 @@ def runtime_metadata() -> dict[str, Any]:
 
 
 def redact_sensitive_fields(payload: Any) -> Any:
-    """Recursively redact sensitive credential-like fields."""
-    sensitive_tokens = ("api_key", "key", "secret", "token", "password", "credential", "auth")
+    """Recursively redact sensitive credential-like fields.
+
+    使用精确的敏感字段名列表匹配，避免过度脱敏（如误命中 cache_key、primary_key 等）。
+    匹配规则：字段名完全等于、或以 ``_`` 分隔后包含敏感词根。
+    """
+    # 完整匹配这些字段名，或字段名以 _ 分隔后任一段匹配
+    _SENSITIVE_EXACT = frozenset({
+        "api_key", "apikey", "secret", "secret_key", "secretkey",
+        "password", "passwd", "token", "access_token", "refresh_token",
+        "credential", "auth", "authorization", "auth_token",
+    })
+    _SENSITIVE_SUFFIXES = ("_key", "_secret", "_token", "_password", "_credential")
     if isinstance(payload, dict):
         out: dict[str, Any] = {}
         for k, v in payload.items():
             key_lower = str(k).lower()
-            if any(tok in key_lower for tok in sensitive_tokens):
+            is_sensitive = (
+                key_lower in _SENSITIVE_EXACT
+                or any(key_lower.endswith(suf) for suf in _SENSITIVE_SUFFIXES)
+            )
+            if is_sensitive:
                 out[k] = "***"
             else:
                 out[k] = redact_sensitive_fields(v)

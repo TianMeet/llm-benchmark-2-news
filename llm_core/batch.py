@@ -15,7 +15,6 @@ import logging
 import statistics
 
 from llm_core.base_client import BaseLLMClient, LLMResponse
-from llm_core.openai_client import OpenAICompatibleClient
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +27,9 @@ _FAILED_SENTINEL = LLMResponse(
 
 
 def _create_client(llm_cfg: dict) -> BaseLLMClient:
-    """内部工厂：从配置创建客户端（避免循环导入 __init__）。"""
-    return OpenAICompatibleClient(llm_cfg)
+    """通过 Provider 注册表工厂创建客户端，保持与 __init__.py 一致。"""
+    from llm_core import create_llm_client
+    return create_llm_client(llm_cfg)
 
 
 async def call_llm_batch(

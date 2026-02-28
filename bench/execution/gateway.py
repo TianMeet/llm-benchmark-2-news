@@ -49,11 +49,23 @@ class ModelGateway(ABC):
 class LLMGateway(ModelGateway):
     """基于现有 llm_core 的调用实现，支持可复现缓存。"""
 
-    def __init__(self, registry: ModelRegistry, cache: EvalCache | None = None, mock: bool = False):
+    # 连接池默认最大容量——超过时淘汰最早的条目。
+    _DEFAULT_POOL_MAXSIZE: int = 32
+
+    def __init__(
+        self,
+        registry: ModelRegistry,
+        cache: EvalCache | None = None,
+        mock: bool = False,
+        pool_maxsize: int | None = None,
+    ):
         self.registry = registry
         self.cache = cache
         self.mock = mock
-        self._client_pool: dict[str, Any] = {}
+        self._pool_maxsize = pool_maxsize or self._DEFAULT_POOL_MAXSIZE
+        # 使用 OrderedDict 实现简易 LRU 淘汰。
+        from collections import OrderedDict
+        self._client_pool: OrderedDict[str, Any] = OrderedDict()
         self._client_pool_lock = asyncio.Lock()
 
     @staticmethod
@@ -68,15 +80,21 @@ class LLMGateway(ModelGateway):
         key = self._client_pool_key(model_id, params_override)
         client = self._client_pool.get(key)
         if client is not None:
+            # 访问时移动到末尾（LRU）。
+            self._client_pool.move_to_end(key)
             return client
 
         async with self._client_pool_lock:
             # 双重检查，避免并发下重复创建。
             client = self._client_pool.get(key)
             if client is not None:
+                self._client_pool.move_to_end(key)
                 return client
             client = self.registry.create_client(model_id, params_override=params_override)
             self._client_pool[key] = client
+            # 淘汰最早的条目。
+            while len(self._client_pool) > self._pool_maxsize:
+                self._client_pool.popitem(last=False)
             return client
 
     async def call(

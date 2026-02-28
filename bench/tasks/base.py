@@ -22,7 +22,9 @@ class EvalTask(ABC):
     name: str = ""     # 子类必须赋值为非空任务名，对应 bench/tasks/{name}.yaml
     version: str = "v1"  # 任务版本，记录在 results.jsonl 中用于回归追踪
     parse_applicable: bool = True   # 是否需要解析模型输出；False 时 parse_success 不影响评分
-    default_params: dict[str, Any] = {}  # 任务级默认模型参数，如 response_format
+    # 注意：不要直接使用类级 mutable 默认值；GenericTask.__init__ 中会重新赋值为独立实例。
+    # 此处设为 None，子类必须在 __init__ 中赋值为独立 dict。
+    default_params: dict[str, Any] | None = None  # 任务级默认模型参数，如 response_format
 
     @abstractmethod
     def build_prompt(self, sample: dict[str, Any], context: dict[str, Any] | None = None) -> tuple[list[dict], str]:

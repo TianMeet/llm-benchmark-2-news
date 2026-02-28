@@ -87,8 +87,12 @@ def as_set_of_str(values: Any, *, normalize: bool = True) -> set[str]:
 # 各类型指标计算函数
 # ─────────────────────────────────────────────────────────────────────────────
 
-def calc_field_completeness(rule: dict, parsed: dict | None) -> dict[str, Any]:
-    """计算 parse 结果中指定字段的填充率。"""
+def calc_field_completeness(rule: dict, sample: dict, parsed: dict | None) -> dict[str, Any]:
+    """计算 parse 结果中指定字段的填充率。
+
+    注：sample 参数未使用，保留是为了与其他 calc_* 函数签名统一，
+    消除 compute_metric() 分发层的 if/else 特殊分支。
+    """
     fields = rule.get("fields", [])
     if not fields or not parsed:
         return {"field_completeness": 0.0}
@@ -313,8 +317,5 @@ def compute_metric(
         logger.warning("Unknown metric type '%s' in task '%s'", mtype, task_name)
         return {}
 
-    # reference_rouge / custom_ratio / exact_match 等需要 sample；
-    # field_completeness 只需要 parsed。通过 signature 统一调用。
-    if mtype == "field_completeness":
-        return calc(rule, parsed)
+    # 所有 calc_* 函数统一签名 (rule, sample, parsed)，无需按类型分支。
     return calc(rule, sample, parsed)

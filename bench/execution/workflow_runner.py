@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -233,6 +233,384 @@ def _build_workflow_e2e_row(
     return _result_row_dict(row, workflow_name=workflow_name, workflow_version=workflow_version)
 
 
+# ---------------------------------------------------------------------------
+# _SampleRunner: 将原 ~230 行的 _run_one_sample 拆分为可独立测试的方法
+# ---------------------------------------------------------------------------
+
+@dataclass
+class _StepExecResult:
+    """Successfully executed step result."""
+    row: dict[str, Any]
+    output_entry: dict[str, Any]
+    step_ok: bool
+    latency_ms: float
+    total_tokens: int
+    retry_count: int
+    cost: float
+    parsed: dict[str, Any] | None
+    parse_applicable: bool
+
+
+class _StepExecError(Exception):
+    """Wraps a prompt-build or gateway-call error with audit context."""
+
+    def __init__(self, exc: EvalBenchError, prompt_version: str = "error"):
+        super().__init__(str(exc))
+        self.cause = exc
+        self.prompt_version = prompt_version
+
+
+class _SampleRunner:
+    """对单个样本执行全部 workflow steps 的状态机。
+
+    将 _run_one_sample 的逻辑拆分为：
+      _resolve_model_id / _merge_params / _resolve_step_input /
+      _fail_row / _execute_step / run
+    """
+
+    __slots__ = (
+        "_run_id", "_store", "_gateway", "_registry", "_wf",
+        "_global_params", "_default_model_id", "_step_map",
+    )
+
+    def __init__(
+        self,
+        *,
+        run_id: str,
+        store: RunStore,
+        gateway: LLMGateway,
+        registry: ModelRegistry,
+        workflow: WorkflowSpec,
+        global_params: dict[str, Any],
+        default_model_id: str,
+        step_map: dict[str, str],
+    ) -> None:
+        self._run_id = run_id
+        self._store = store
+        self._gateway = gateway
+        self._registry = registry
+        self._wf = workflow
+        self._global_params = global_params
+        self._default_model_id = default_model_id
+        self._step_map = step_map
+
+    # ─── 辅助方法 ────────────────────────────────────────────────
+
+    def _resolve_model_id(self, step: Any) -> str:
+        raw = self._step_map.get(step.id) or (
+            self._default_model_id if step.model_id == "$active" else step.model_id
+        )
+        if not raw:
+            raise ValueError(
+                f"Cannot resolve model for step '{step.id}': "
+                f"no --models supplied and no active model in registry."
+            )
+        return raw
+
+    @staticmethod
+    def _merge_params(task: Any, step: Any, global_params: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(getattr(task, "default_params", {}) or {})
+        merged.update(global_params)
+        merged.update(step.params_override)
+        return merged
+
+    def _resolve_step_input(
+        self,
+        step: Any,
+        sample: dict[str, Any],
+        step_outputs: dict[str, dict[str, Any]],
+    ) -> tuple[Any, UpstreamDependencyError | None]:
+        """返回 ``(step_input, error_or_none)``。upstream 失败时 step_input 为 None。"""
+        if step.input_from == "sample":
+            return sample, None
+        prev = step_outputs.get(step.input_from)
+        upstream_failed = (
+            prev is None
+            or not prev.get("success")
+            or (prev.get("parse_applicable", True) and not prev.get("parse_success"))
+        )
+        if upstream_failed:
+            reason = (
+                f"upstream_{step.input_from}_parse_failed"
+                if prev is not None
+                else f"upstream_{step.input_from}_missing"
+            )
+            return None, UpstreamDependencyError(reason, missing=(prev is None))
+        step_input = prev["parsed"] if prev.get("parse_applicable", True) else prev.get("raw", "")
+        return step_input, None
+
+    def _fail_row(
+        self,
+        *,
+        sample_id: str,
+        step: Any,
+        task: Any,
+        model_id: str,
+        merged_params: dict[str, Any],
+        error_exc: EvalBenchError,
+        prompt_version: str = "skipped",
+        task_version: str | None = None,
+    ) -> dict[str, Any]:
+        """Create, persist and return an error row for a failed step."""
+        row = _build_workflow_error_row(
+            run_id=self._run_id,
+            sample_id=sample_id,
+            workflow_name=self._wf.name,
+            workflow_version=self._wf.version,
+            task_name=getattr(task, "name", step.task),
+            task_version=task_version if task_version is not None else getattr(task, "version", "skipped"),
+            step_id=step.id,
+            prompt_version=prompt_version,
+            model_id=model_id,
+            params=merged_params,
+            error_message=str(error_exc),
+            parse_applicable=getattr(task, "parse_applicable", True),
+            error_exc=error_exc,
+        )
+        self._store.append_result(row)
+        return row
+
+    @staticmethod
+    def _failure_output_entry(task: Any) -> dict[str, Any]:
+        return {
+            "parsed": None,
+            "raw": "",
+            "success": False,
+            "parse_success": False,
+            "parse_applicable": task.parse_applicable,
+        }
+
+    # ─── 核心执行 ────────────────────────────────────────────────
+
+    async def _execute_step(
+        self,
+        *,
+        sample_id: str,
+        sample: dict[str, Any],
+        step: Any,
+        task: Any,
+        model_id: str,
+        merged_params: dict[str, Any],
+        step_input: Any,
+        step_outputs: dict[str, dict[str, Any]],
+    ) -> _StepExecResult:
+        """执行 prompt→call→parse→metrics 流水线。
+
+        Raises:
+            _StepExecError: 当 prompt 构建或 gateway 调用抛出异常。
+        """
+        # ── prompt ──
+        try:
+            if self._gateway.mock:
+                messages: list[Any] = []
+                prompt_version = "mock"
+            else:
+                messages, prompt_version = task.build_prompt(
+                    sample, context={"input": step_input, "step_outputs": step_outputs},
+                )
+        except Exception as exc:
+            raise _StepExecError(PromptBuildError(str(exc)), "error") from exc
+
+        # ── gateway call ──
+        try:
+            call = await self._gateway.call(
+                model_id=model_id,
+                task_name=task.name,
+                sample=sample,
+                sample_cache_id=f"{sample_id}:{step.id}:{task.name}",
+                messages=messages,
+                params_override=merged_params,
+            )
+        except Exception as exc:
+            gw_exc = exc if isinstance(exc, EvalBenchError) else GatewayCallError(str(exc))
+            raise _StepExecError(gw_exc, prompt_version) from exc
+
+        # ── parse (non-fatal) ──
+        parsed = None
+        parse_success = False
+        task_metrics: dict[str, Any] = {}
+        row_success = bool(call.success)
+        error_message = call.error
+        derived_exc: EvalBenchError | None = None
+
+        if call.success:
+            try:
+                parsed = task.parse(call.content)
+                parse_success = parsed is not None
+            except Exception as exc:
+                row_success = False
+                parse_success = False
+                parse_exc = ParseOutputError(str(exc))
+                derived_exc = parse_exc
+                error_message = f"{error_message}; {parse_exc}" if error_message else str(parse_exc)
+        else:
+            parse_success = False
+
+        # ── metrics (non-fatal) ──
+        try:
+            task_metrics = task.metrics(sample, call.content, parsed)
+        except Exception as exc:
+            row_success = False
+            metrics_exc = MetricsComputeError(str(exc))
+            derived_exc = metrics_exc
+            error_message = f"{error_message}; {metrics_exc}" if error_message else str(metrics_exc)
+            task_metrics = {}
+
+        spec = self._registry.get(model_id)
+        cost = 0.0 if call.from_cache else estimate_cost(call.usage, spec.price_config)
+
+        step_row = _build_workflow_step_row(
+            run_id=self._run_id,
+            sample_id=sample_id,
+            workflow_name=self._wf.name,
+            workflow_version=self._wf.version,
+            task_name=task.name,
+            task_version=task.version,
+            step_id=step.id,
+            prompt_version=prompt_version,
+            model_id=model_id,
+            params=merged_params,
+            row_success=row_success,
+            error_message=error_message,
+            parse_applicable=task.parse_applicable,
+            parse_success=parse_success,
+            latency_ms=call.latency_ms,
+            usage=call.usage,
+            retry_count=call.retry_count,
+            cost_estimate=cost,
+            from_cache=call.from_cache,
+            output_text=call.content,
+            parsed=parsed,
+            task_metrics=task_metrics,
+            error_type=call.error_type,
+            error_stage=call.error_stage,
+            error_code=call.error_code,
+            error_exc=derived_exc,
+        )
+        self._store.append_result(step_row)
+
+        output_entry = {
+            "parsed": parsed,
+            "raw": call.content,
+            "success": call.success,
+            "parse_success": parse_success,
+            "parse_applicable": task.parse_applicable,
+        }
+        step_ok = row_success and (parse_success or not task.parse_applicable)
+
+        return _StepExecResult(
+            row=step_row,
+            output_entry=output_entry,
+            step_ok=step_ok,
+            latency_ms=call.latency_ms,
+            total_tokens=call.usage["total_tokens"],
+            retry_count=call.retry_count,
+            cost=cost,
+            parsed=parsed,
+            parse_applicable=task.parse_applicable,
+        )
+
+    # ─── 样本入口 ────────────────────────────────────────────────
+
+    async def run(self, sample: dict[str, Any]) -> list[dict[str, Any]]:
+        """对单个样本执行全部 workflow steps，返回 step 级 + e2e 级结果行。"""
+        sample_records: list[dict[str, Any]] = []
+        sample_id = str(sample.get("sample_id", ""))
+        step_outputs: dict[str, dict[str, Any]] = {}
+        e2e_success = True
+        e2e_latency = 0.0
+        e2e_tokens = 0
+        e2e_retry = 0
+        e2e_cost = 0.0
+        final_output: dict[str, Any] | None = None
+        last_step_pa = True
+
+        for step in self._wf.steps:
+            model_id = self._resolve_model_id(step)
+            task = build_task(step.task)
+            merged_params = self._merge_params(task, step, self._global_params)
+
+            # ── upstream 检查 ──
+            step_input, upstream_err = self._resolve_step_input(step, sample, step_outputs)
+            if upstream_err is not None:
+                logger.warning(
+                    "workflow step '%s' skipped: %s (sample=%s)",
+                    step.id, upstream_err, sample_id,
+                )
+                sample_records.append(self._fail_row(
+                    sample_id=sample_id, step=step, task=task,
+                    model_id=model_id, merged_params=merged_params,
+                    error_exc=upstream_err, task_version="skipped",
+                ))
+                step_outputs[step.id] = self._failure_output_entry(task)
+                final_output = None
+                e2e_success = False
+                continue
+
+            # ── 执行 prompt → call → parse → metrics ──
+            try:
+                result = await self._execute_step(
+                    sample_id=sample_id, sample=sample, step=step, task=task,
+                    model_id=model_id, merged_params=merged_params,
+                    step_input=step_input, step_outputs=step_outputs,
+                )
+            except _StepExecError as e:
+                logger.warning(
+                    "workflow step '%s' failed: %s (sample=%s)",
+                    step.id, e, sample_id,
+                )
+                sample_records.append(self._fail_row(
+                    sample_id=sample_id, step=step, task=task,
+                    model_id=model_id, merged_params=merged_params,
+                    error_exc=e.cause, prompt_version=e.prompt_version,
+                ))
+                step_outputs[step.id] = self._failure_output_entry(task)
+                final_output = None
+                e2e_success = False
+                continue
+
+            sample_records.append(result.row)
+            step_outputs[step.id] = result.output_entry
+            e2e_success = e2e_success and result.step_ok
+            e2e_latency += result.latency_ms
+            e2e_tokens += result.total_tokens
+            e2e_retry += result.retry_count
+            e2e_cost += result.cost
+            final_output = result.parsed
+            last_step_pa = result.parse_applicable
+
+        # ── e2e 汇总行 ──
+        e2e_row = _build_workflow_e2e_row(
+            run_id=self._run_id,
+            sample_id=sample_id,
+            workflow_name=self._wf.name,
+            workflow_version=self._wf.version,
+            model_id="+".join(
+                self._step_map.get(s.id) or (
+                    self._default_model_id if s.model_id == "$active" else s.model_id
+                )
+                for s in self._wf.steps
+            ),
+            params=self._global_params,
+            success=e2e_success,
+            parse_applicable=last_step_pa,
+            parse_success=final_output is not None if last_step_pa else False,
+            latency_ms=e2e_latency,
+            total_tokens=e2e_tokens,
+            retry_count=e2e_retry,
+            cost_estimate=e2e_cost,
+            parsed=final_output,
+        )
+        self._store.append_result(e2e_row)
+        sample_records.append(e2e_row)
+
+        return sample_records
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
 async def run_workflow_mode(
     *,
     run_id: str,
@@ -266,255 +644,27 @@ async def run_workflow_mode(
         )
     ]
 
-    async def _run_one_sample(sample: dict[str, Any]) -> list[dict[str, Any]]:
-        sample_records: list[dict[str, Any]] = []
-        sample_id = str(sample.get("sample_id", ""))
-        step_outputs: dict[str, dict[str, Any]] = {}
-        e2e_success = True
-        e2e_latency = 0.0
-        e2e_tokens = 0
-        e2e_retry = 0
-        e2e_cost = 0.0
-        final_output: dict[str, Any] | None = None
-        last_step_parse_applicable = True
-
-        for step in workflow.steps:
-            # 解析最终使用的 model_id：CLI step_model_map > 步骤显式声明 > default_model_id（$active 回退）
-            raw_model_id = _step_map.get(step.id) or (
-                default_model_id if step.model_id == "$active" else step.model_id
-            )
-            if not raw_model_id:
-                raise ValueError(
-                    f"Cannot resolve model for step '{step.id}': "
-                    f"no --models supplied and no active model in registry."
-                )
-            task = build_task(step.task)
-            task_defaults = dict(getattr(task, "default_params", {}) or {})
-            merged_params = dict(task_defaults)
-            merged_params.update(global_params)
-            merged_params.update(step.params_override)
-
-            # step 输入可来自原始样本或上一步解析结果。
-            if step.input_from == "sample":
-                step_input = sample
-            else:
-                prev = step_outputs.get(step.input_from)
-                # 上游失败判定：上游缺失、上游调用失败、或上游需要解析但解析失败
-                upstream_failed = (
-                    prev is None
-                    or not prev.get("success")
-                    or (prev.get("parse_applicable", True) and not prev.get("parse_success"))
-                )
-                if upstream_failed:
-                    reason = (
-                        f"upstream_{step.input_from}_parse_failed"
-                        if prev is not None
-                        else f"upstream_{step.input_from}_missing"
-                    )
-                    upstream_exc = UpstreamDependencyError(reason, missing=(prev is None))
-                    logger.warning(
-                        "workflow step '%s' skipped: %s (sample=%s)",
-                        step.id, reason, sample_id,
-                    )
-                    skip_row = _build_workflow_error_row(
-                        run_id=run_id,
-                        sample_id=sample_id,
-                        workflow_name=workflow.name,
-                        workflow_version=workflow.version,
-                        task_name=step.task,
-                        task_version="skipped",
-                        step_id=step.id,
-                        prompt_version="skipped",
-                        model_id=raw_model_id,
-                        params=merged_params,
-                        error_message=str(upstream_exc),
-                        parse_applicable=task.parse_applicable,
-                        error_exc=upstream_exc,
-                    )
-                    store.append_result(skip_row)
-                    sample_records.append(skip_row)
-                    step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False, "parse_applicable": task.parse_applicable}
-                    final_output = None
-                    e2e_success = False
-                    continue
-                # 上游 parse_applicable=False 时，传递 raw 内容作为输入
-                step_input = prev["parsed"] if prev.get("parse_applicable", True) else prev.get("raw", "")
-
-            try:
-                if gateway.mock:
-                    messages, prompt_version = [], "mock"
-                else:
-                    messages, prompt_version = task.build_prompt(
-                        sample, context={"input": step_input, "step_outputs": step_outputs}
-                    )
-            except Exception as exc:
-                prompt_exc = PromptBuildError(str(exc))
-                step_row = _build_workflow_error_row(
-                    run_id=run_id,
-                    sample_id=sample_id,
-                    workflow_name=workflow.name,
-                    workflow_version=workflow.version,
-                    task_name=task.name,
-                    task_version=task.version,
-                    step_id=step.id,
-                    prompt_version="error",
-                    model_id=raw_model_id,
-                    params=merged_params,
-                    error_message=str(prompt_exc),
-                    parse_applicable=task.parse_applicable,
-                    error_exc=prompt_exc,
-                )
-                store.append_result(step_row)
-                sample_records.append(step_row)
-                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False, "parse_applicable": task.parse_applicable}
-                final_output = None
-                e2e_success = False
-                continue
-
-            try:
-                call = await gateway.call(
-                    model_id=raw_model_id,
-                    task_name=task.name,
-                    sample=sample,
-                    sample_cache_id=f"{sample_id}:{step.id}:{task.name}",
-                    messages=messages,
-                    params_override=merged_params,
-                )
-            except Exception as exc:
-                gateway_exc = exc if isinstance(exc, EvalBenchError) else GatewayCallError(str(exc))
-                step_row = _build_workflow_error_row(
-                    run_id=run_id,
-                    sample_id=sample_id,
-                    workflow_name=workflow.name,
-                    workflow_version=workflow.version,
-                    task_name=task.name,
-                    task_version=task.version,
-                    step_id=step.id,
-                    prompt_version=prompt_version,
-                    model_id=raw_model_id,
-                    params=merged_params,
-                    error_message=str(gateway_exc),
-                    parse_applicable=task.parse_applicable,
-                    error_exc=gateway_exc,
-                )
-                store.append_result(step_row)
-                sample_records.append(step_row)
-                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False, "parse_applicable": task.parse_applicable}
-                final_output = None
-                e2e_success = False
-                continue
-
-            parsed = None
-            parse_success = False
-            task_metrics: dict[str, Any] = {}
-            row_success = bool(call.success)
-            error_message = call.error
-            derived_exc: EvalBenchError | None = None
-            if call.success:
-                try:
-                    parsed = task.parse(call.content)
-                    parse_success = parsed is not None
-                except Exception as exc:
-                    row_success = False
-                    parse_success = False
-                    parse_exc = ParseOutputError(str(exc))
-                    derived_exc = parse_exc
-                    error_message = f"{error_message}; {parse_exc}" if error_message else str(parse_exc)
-            else:
-                parse_success = False
-            try:
-                task_metrics = task.metrics(sample, call.content, parsed)
-            except Exception as exc:
-                row_success = False
-                metrics_exc = MetricsComputeError(str(exc))
-                derived_exc = metrics_exc
-                error_message = f"{error_message}; {metrics_exc}" if error_message else str(metrics_exc)
-                task_metrics = {}
-            spec = registry.get(raw_model_id)
-            cost = 0.0 if call.from_cache else estimate_cost(call.usage, spec.price_config)
-
-            e2e_success = e2e_success and row_success and (parse_success or not task.parse_applicable)
-            e2e_latency += call.latency_ms
-            e2e_tokens += call.usage["total_tokens"]
-            e2e_retry += call.retry_count
-            e2e_cost += cost
-            final_output = parsed
-            last_step_parse_applicable = task.parse_applicable
-
-            step_row = _build_workflow_step_row(
-                run_id=run_id,
-                sample_id=sample_id,
-                workflow_name=workflow.name,
-                workflow_version=workflow.version,
-                task_name=task.name,
-                task_version=task.version,
-                step_id=step.id,
-                prompt_version=prompt_version,
-                model_id=raw_model_id,
-                params=merged_params,
-                row_success=row_success,
-                error_message=error_message,
-                parse_applicable=task.parse_applicable,
-                parse_success=parse_success,
-                latency_ms=call.latency_ms,
-                usage=call.usage,
-                retry_count=call.retry_count,
-                cost_estimate=cost,
-                from_cache=call.from_cache,
-                output_text=call.content,
-                parsed=parsed,
-                task_metrics=task_metrics,
-                error_type=call.error_type,
-                error_stage=call.error_stage,
-                error_code=call.error_code,
-                error_exc=derived_exc,
-            )
-            store.append_result(step_row)
-            sample_records.append(step_row)
-
-            step_outputs[step.id] = {
-                "parsed": parsed,
-                "raw": call.content,
-                "success": call.success,
-                "parse_success": parse_success,
-                "parse_applicable": task.parse_applicable,
-            }
-
-        # 端到端汇总行用于整体效果回归与版本对比。
-        e2e_row = _build_workflow_e2e_row(
-            run_id=run_id,
-            sample_id=sample_id,
-            workflow_name=workflow.name,
-            workflow_version=workflow.version,
-            model_id="+".join(
-                _step_map.get(step.id) or (default_model_id if step.model_id == "$active" else step.model_id)
-                for step in workflow.steps
-            ),
-            params=global_params,
-            success=e2e_success,
-            parse_applicable=last_step_parse_applicable,
-            parse_success=final_output is not None if last_step_parse_applicable else False,
-            latency_ms=e2e_latency,
-            total_tokens=e2e_tokens,
-            retry_count=e2e_retry,
-            cost_estimate=e2e_cost,
-            parsed=final_output,
-        )
-        store.append_result(e2e_row)
-        sample_records.append(e2e_row)
-
-        return sample_records
+    runner = _SampleRunner(
+        run_id=run_id,
+        store=store,
+        gateway=gateway,
+        registry=registry,
+        workflow=workflow,
+        global_params=global_params,
+        default_model_id=default_model_id,
+        step_map=_step_map,
+    )
 
     if workflow_concurrency <= 1:
         for sample in filtered_dataset:
-            records.extend(await _run_one_sample(sample))
+            records.extend(await runner.run(sample))
         return records
 
     sem = asyncio.Semaphore(workflow_concurrency if workflow_concurrency > 0 else 10_000)
 
     async def _bounded_run(sample: dict[str, Any]) -> list[dict[str, Any]]:
         async with sem:
-            return await _run_one_sample(sample)
+            return await runner.run(sample)
 
     pending: set[asyncio.Task[list[dict[str, Any]]]] = set()
 
@@ -522,7 +672,11 @@ async def run_workflow_mode(
         nonlocal pending
         done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
         for task_fut in done:
-            rows = task_fut.result()
+            try:
+                rows = task_fut.result()
+            except Exception as exc:
+                logger.error("Unexpected workflow_runner coroutine exception: %s", exc, exc_info=True)
+                continue
             records.extend(rows)
 
     for sample in filtered_dataset:

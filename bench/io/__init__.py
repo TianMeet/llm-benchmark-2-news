@@ -10,7 +10,7 @@ I/O 层：运行产物持久化、缓存、Prompt 加载。
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from utils.lazy_import import make_lazy_module_getattr
+from bench_utils.lazy_import import make_lazy_module_getattr
 
 if TYPE_CHECKING:
     from bench.io.cache import EvalCache

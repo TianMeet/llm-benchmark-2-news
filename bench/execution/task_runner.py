@@ -222,7 +222,11 @@ async def run_task_mode(
         nonlocal pending
         done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
         for task_fut in done:
-            row = task_fut.result()
+            try:
+                row = task_fut.result()
+            except Exception as exc:
+                logger.error("Unexpected task_runner coroutine exception: %s", exc, exc_info=True)
+                continue
             store.append_result(row)
             records.append(row)
 

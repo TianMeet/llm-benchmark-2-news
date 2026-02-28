@@ -26,7 +26,16 @@ class OpenAICompatibleClient(BaseLLMClient):
 
     RATE_LIMIT_ERRORS = (openai.RateLimitError,)
     RETRYABLE_ERRORS = (openai.APITimeoutError, openai.InternalServerError)
-    NON_RETRYABLE_ERRORS = (openai.APIError,)
+    # 精确列出不可重试的错误子类，避免父类 APIError 过宽匹配
+    # （若 openai 库新增可重试子类不会被误捕获为不可重试）。
+    NON_RETRYABLE_ERRORS = (
+        openai.AuthenticationError,
+        openai.PermissionDeniedError,
+        openai.BadRequestError,
+        openai.NotFoundError,
+        openai.UnprocessableEntityError,
+        openai.ConflictError,
+    )
 
     def __init__(self, config: dict):
         super().__init__(config)

@@ -18,6 +18,8 @@ __all__ = ["EvalCache"]
 import hashlib
 import json
 import logging
+import os
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -44,8 +46,13 @@ class EvalCache:
         return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     def _path_for(self, key: str) -> Path:
-        """将缓存键映射为缓存文件路径。"""
-        return self.cache_dir / f"{key}.json"
+        """将缓存键映射为两级子目录路径，避免单目录文件过多导致文件系统性能下降。
+
+        结构：{cache_dir}/{hash[:2]}/{hash[2:4]}/{hash}.json
+        """
+        sub = self.cache_dir / key[:2] / key[2:4]
+        sub.mkdir(parents=True, exist_ok=True)
+        return sub / f"{key}.json"
 
     def get(self, key: str) -> dict[str, Any] | None:
         """读取缓存命中结果；未命中返回 None。"""
@@ -61,9 +68,24 @@ class EvalCache:
                 return None
 
     def set(self, key: str, value: dict[str, Any]) -> None:
-        """写入缓存内容（加锁保护，防止并发写入截断文件导致读取失败）。"""
+        """原子写入缓存：先写临时文件再 rename，保证文件要么完整要么不存在。
+
+        在 POSIX 系统上 rename 是原子操作，即使进程中途崩溃也不会产生
+        空文件或截断文件。Windows 上 os.replace 也能保证覆盖原子性。
+        """
         with self._lock:
-            self._path_for(key).write_text(
-                json.dumps(value, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            target = self._path_for(key)
+            try:
+                fd, tmp_path = tempfile.mkstemp(
+                    dir=str(target.parent), suffix=".tmp", prefix="cache_",
+                )
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(value, f, ensure_ascii=False, indent=2)
+                os.replace(tmp_path, str(target))
+            except Exception:
+                # 清理残留临时文件
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise

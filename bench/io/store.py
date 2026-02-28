@@ -56,6 +56,8 @@ class RunStore:
             self.run_dir.mkdir(parents=True, exist_ok=True)
         self.results_path = self.run_dir / "results.jsonl"
         self._append_lock = threading.Lock()
+        # 持有文件 writer，避免每次 append 都 open/close
+        self._results_writer: Any | None = None
 
     def write_config(self, payload: dict[str, Any]) -> None:
         """写入本次评测配置快照。"""
@@ -88,12 +90,30 @@ class RunStore:
     def append_result(self, row: dict[str, Any]) -> None:
         """逐条追加样本结果（加锁保护，保证多线程下行原子性）。
 
-        虽然 CPython GIL 使 asyncio 场景下写入事实安全，
-        但显式加锁可保证在 ThreadPoolExecutor / 混合场景下的行完整性。
+        内部持有打开的文件句柄，避免每次 append 都 open/close 带来的
+        系统调用开销。每次写入后立即 flush 保证数据可见性。
         """
         with self._append_lock:
-            with self.results_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            if self._results_writer is None:
+                self._results_writer = self.results_path.open("a", encoding="utf-8")
+            self._results_writer.write(json.dumps(row, ensure_ascii=False) + "\n")
+            self._results_writer.flush()
+
+    def close(self) -> None:
+        """关闭持有的文件句柄。
+
+        调用方应在 run 结束后调用，或使用 ``with`` 上下文管理器。
+        """
+        with self._append_lock:
+            if self._results_writer is not None:
+                self._results_writer.close()
+                self._results_writer = None
+
+    def __enter__(self) -> "RunStore":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.close()
 
     def write_partitioned_results(self, records: list[dict[str, Any]]) -> None:
         """按 task_name / model_id 分目录写出结果。

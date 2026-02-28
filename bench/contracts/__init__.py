@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-from utils.lazy_import import make_lazy_module_getattr
+from bench_utils.lazy_import import make_lazy_module_getattr
 
 if TYPE_CHECKING:
     from bench.contracts.constants import STEP_ID_E2E, STEP_ID_TASK
