@@ -6,19 +6,23 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from eval.tasks.base import EvalTask
-from eval.tasks.generic import GenericTask
+if TYPE_CHECKING:
+    from eval.tasks.base import EvalTask
+    from eval.tasks.generic import GenericTask
 
 _TASKS_DIR = Path(__file__).resolve().parent
 
 
-def build_task(task_name: str) -> EvalTask:
+def build_task(task_name: str) -> "EvalTask":
     """按任务名加载对应的 YAML 配置并返回 GenericTask 实例。
 
     任务配置文件路径：eval/tasks/{task_name}.yaml
     新增任务无需修改此文件，只需添加对应 YAML。
     """
+    from eval.tasks.generic import GenericTask  # noqa: PLC0415
+
     config_path = _TASKS_DIR / f"{task_name}.yaml"
     if not config_path.exists():
         available = sorted(p.stem for p in _TASKS_DIR.glob("*.yaml"))
