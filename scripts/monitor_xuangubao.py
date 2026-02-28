@@ -152,7 +152,7 @@ def main():
     )
     parser.add_argument(
         "--output-file",
-        default="/private/tmp/claude-501/-Users-xingkong-Desktop-llm-benchmark-2-news/tasks/blvoawn34.output",
+        required=True,
         help="爬取任务的输出文件路径",
     )
 

@@ -98,6 +98,7 @@ flowchart TB
         D_BENCH["benchmark_news · .jsonl"]
         D_DEMO["demo_news · .jsonl"]
         D_EVAL["news_summary_eval · .jsonl"]
+        D_STOCK["stock_association_eval · .jsonl"]
     end
 
     %% ─────────── 连接关系 ───────────

@@ -16,11 +16,12 @@
   - `io/`：运行产物存储、缓存、prompt store
   - `reporting/`：报告生成抽象与 Markdown 实现
   - `registry.py`：模型注册表 + 成本估算
-  - `tasks/`：任务契约与示例任务（`ie_json`/`stock_score`/`news_dedup`）
+  - `tasks/`：任务契约与示例任务（`ie_json`/`news_analysis`/`news_dedup`/`stock_score`/`stock_association`）
   - `workflow.py`：轻量 workflow 解析
   - `cli/runner.py`：CLI 执行入口
   - `metrics/aggregate.py`：聚合统计
 - `datasets/demo_news.jsonl`：demo 数据集（10 条）
+- `datasets/stock_association_eval.jsonl`：股票联想评测数据集（板块→关联股票）
 - `workflows/news_pipeline.yaml`：多步协作 workflow 示例
 - `runs/`：每次评测输出目录
 

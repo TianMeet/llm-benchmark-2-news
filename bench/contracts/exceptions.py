@@ -43,6 +43,8 @@ class EvalBenchError(Exception):
 
 
 class PromptBuildError(EvalBenchError):
+    """build_prompt 阶段异常：模板渲染失败、变量缺失等。"""
+
     def __init__(self, message: str) -> None:
         super().__init__(
             f"build_prompt_error: {message}",
@@ -53,6 +55,8 @@ class PromptBuildError(EvalBenchError):
 
 
 class GatewayCallError(EvalBenchError):
+    """gateway/API 调用阶段异常：超时、限流、HTTP 错误等。"""
+
     def __init__(self, message: str, *, error_code: str = "gateway_error") -> None:
         super().__init__(
             f"{error_code}: {message}",
@@ -63,6 +67,8 @@ class GatewayCallError(EvalBenchError):
 
 
 class ParseOutputError(EvalBenchError):
+    """输出解析阶段异常：JSON 解析失败、字段校验不通过等。"""
+
     def __init__(self, message: str) -> None:
         super().__init__(
             f"parse_error: {message}",
@@ -73,6 +79,8 @@ class ParseOutputError(EvalBenchError):
 
 
 class MetricsComputeError(EvalBenchError):
+    """指标计算阶段异常：缺少必要字段、类型不匹配等。"""
+
     def __init__(self, message: str) -> None:
         super().__init__(
             f"metrics_error: {message}",
@@ -83,6 +91,8 @@ class MetricsComputeError(EvalBenchError):
 
 
 class UpstreamDependencyError(EvalBenchError):
+    """workflow 上游依赖异常：上游步骤缺失或解析失败。"""
+
     def __init__(self, message: str, *, missing: bool) -> None:
         code = "upstream_missing" if missing else "upstream_parse_failed"
         super().__init__(

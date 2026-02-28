@@ -4,10 +4,11 @@
 所有 YAML 任务都由 GenericTask 统一实例化，无需修改任何 Python 代码。
 
 当前已注册任务：
-- ie_json        : 新闻信息抽取（股票代码、事件类型、情感、影响度、摘要）
-- news_analysis   : 新闻摘要 + 情感分析（支持 gt_sentiment/reference_summary 评测）
-- news_dedup      : 新闻去重（去重标题列表、移除数量）
-- stock_score     : 股票评分（-100~100 分值 + 理由）
+- ie_json             : 新闻信息抽取（股票代码、事件类型、情感、影响度、摘要）
+- news_analysis       : 新闻摘要 + 情感分析（支持 gt_sentiment/reference_summary 评测）
+- news_dedup          : 新闻去重（去重标题列表、移除数量）
+- stock_score         : 股票评分（-100~100 分值 + 理由）
+- stock_association   : 股票联想（板块→关联股票列表，precision/recall/F1 评测）
 """
 
 from __future__ import annotations

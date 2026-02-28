@@ -30,23 +30,6 @@
         "output_per_1k": 0.0006
       }
     },
-    "deepseek-personal": {
-      "provider": "openai_compatible",
-      "model": "deepseek-chat",
-      "api_key": "${DEEPSEEK_API_KEY}",
-      "base_url": "https://api.deepseek.com",
-      "temperature": 0,
-      "max_tokens": 512,
-      "timeout": 120,
-      "max_retries": 3,
-      "retry_delay": 3.0,
-      "seed": 42,
-      "concurrency": 0,
-      "price_config": {
-        "input_per_1k": 0.00027,
-        "output_per_1k": 0.0011
-      }
-    },
     "deepseek-chat": {
       "provider": "openai_compatible",
       "model": "deepseek-chat",
