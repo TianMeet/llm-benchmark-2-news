@@ -274,6 +274,45 @@ def test_task_mode_parse_exception_isolated(monkeypatch: pytest.MonkeyPatch, reg
     assert "parse_error" in rows[0]["error"]
 
 
+def test_task_mode_streaming_without_global_gather(
+    monkeypatch: pytest.MonkeyPatch,
+    registry: ModelRegistry,
+    store: RunStore,
+) -> None:
+    """task 模式应采用流式调度，不再一次性 gather 全量协程。"""
+
+    async def _forbidden_gather(*args, **kwargs):
+        raise AssertionError("global gather should not be used in run_task_mode")
+
+    monkeypatch.setattr("eval.execution.task_runner.asyncio.gather", _forbidden_gather)
+    rows = asyncio.run(
+        _run_task_mode(
+            run_id=store.run_id,
+            store=store,
+            dataset=[_SAMPLE, {**_SAMPLE, "sample_id": "T002"}],
+            registry=registry,
+            task_name="ie_json",
+            model_ids=["m1"],
+            params_override={},
+            repeats=1,
+            gateway=FixedGateway(
+                {
+                    "ie_json": json.dumps(
+                        {
+                            "ticker": "AAPL",
+                            "event_type": "earnings",
+                            "sentiment": "positive",
+                            "impact_score": 1,
+                            "summary": "ok",
+                        }
+                    )
+                }
+            ),
+        )
+    )
+    assert len(rows) == 2
+
+
 def test_task_metrics_appear_in_summary(registry: ModelRegistry, store: RunStore) -> None:
     """R2 验证：aggregate_records 应将 task_metrics 聚合为 tm_* 列。"""
     ie_resp = json.dumps({

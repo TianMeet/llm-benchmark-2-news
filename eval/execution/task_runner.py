@@ -159,15 +159,27 @@ async def run_task_mode(
             "task_metrics": task_metrics,
         }
 
-    coros = [
-        _call_one(model_id, registry.get(model_id), sample, repeat_idx)
-        for model_id in model_ids
-        for sample in dataset
-        for repeat_idx in range(repeats)
-    ]
-    rows = await asyncio.gather(*coros)
-    for row in rows:
-        store.append_result(row)
-        records.append(row)
+    # 流式调度：限制 in-flight 协程数量，避免一次性创建全量协程导致内存峰值升高。
+    max_pending = max(1, sum(c if c > 0 else 128 for c in concurrency_map.values()))
+    pending: set[asyncio.Task[dict[str, Any]]] = set()
+
+    async def _drain_one() -> None:
+        nonlocal pending
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for task_fut in done:
+            row = task_fut.result()
+            store.append_result(row)
+            records.append(row)
+
+    for model_id in model_ids:
+        spec = registry.get(model_id)
+        for sample in dataset:
+            for repeat_idx in range(repeats):
+                pending.add(asyncio.create_task(_call_one(model_id, spec, sample, repeat_idx)))
+                if len(pending) >= max_pending:
+                    await _drain_one()
+
+    while pending:
+        await _drain_one()
 
     return records
