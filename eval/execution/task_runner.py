@@ -52,21 +52,83 @@ async def run_task_mode(
         repeat_idx: int,
     ) -> dict[str, Any]:
         sample_id = str(sample.get("sample_id", ""))
+        prompt_version = "unknown"
+        messages: list[dict[str, Any]] = []
+
+        def _error_row(error: str) -> dict[str, Any]:
+            return {
+                "schema_version": RESULT_ROW_SCHEMA_VERSION,
+                "run_id": run_id,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "mode": "task",
+                "sample_id": sample_id,
+                "task_name": task.name,
+                "task_version": task.version,
+                "step_id": "__task__",
+                "prompt_version": prompt_version,
+                "model_id": model_id,
+                "params": params_override,
+                "repeat_idx": repeat_idx,
+                "success": False,
+                "error": error,
+                "parse_applicable": task.parse_applicable,
+                "parse_success": False,
+                "latency_ms": 0.0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "retry_count": 0,
+                "cost_estimate": 0.0,
+                "from_cache": False,
+                "output_text": "",
+                "parsed": None,
+                "task_metrics": {},
+            }
+
         async with sems[model_id]:
-            if gateway.mock:
-                messages, prompt_version = [], "mock"
-            else:
-                messages, prompt_version = task.build_prompt(sample, context={"repeat_idx": repeat_idx})
-            call = await gateway.call(
-                model_id=model_id,
-                task_name=task.name,
-                sample=sample,
-                sample_cache_id=f"{sample_id}:{repeat_idx}:{task.name}",
-                messages=messages,
-                params_override=params_override,
-            )
-        parsed = task.parse(call.content) if call.success else None
-        task_metrics = task.metrics(sample, call.content, parsed)
+            try:
+                if gateway.mock:
+                    messages, prompt_version = [], "mock"
+                else:
+                    messages, prompt_version = task.build_prompt(sample, context={"repeat_idx": repeat_idx})
+            except Exception as exc:
+                return _error_row(f"build_prompt_error: {exc}")
+            try:
+                call = await gateway.call(
+                    model_id=model_id,
+                    task_name=task.name,
+                    sample=sample,
+                    sample_cache_id=f"{sample_id}:{repeat_idx}:{task.name}",
+                    messages=messages,
+                    params_override=params_override,
+                )
+            except Exception as exc:
+                return _error_row(f"gateway_error: {exc}")
+
+        parsed = None
+        parse_success = False
+        task_metrics: dict[str, Any] = {}
+        row_success = bool(call.success)
+        error_message = call.error
+
+        if call.success:
+            try:
+                parsed = task.parse(call.content)
+                parse_success = parsed is not None
+            except Exception as exc:
+                row_success = False
+                parse_success = False
+                error_message = f"{error_message}; parse_error: {exc}" if error_message else f"parse_error: {exc}"
+        else:
+            parse_success = False
+
+        try:
+            task_metrics = task.metrics(sample, call.content, parsed)
+        except Exception as exc:
+            row_success = False
+            error_message = f"{error_message}; metrics_error: {exc}" if error_message else f"metrics_error: {exc}"
+            task_metrics = {}
+
         cost = 0.0 if call.from_cache else estimate_cost(call.usage, spec.price_config)
         return {
             "schema_version": RESULT_ROW_SCHEMA_VERSION,
@@ -81,10 +143,10 @@ async def run_task_mode(
             "model_id": model_id,
             "params": params_override,
             "repeat_idx": repeat_idx,
-            "success": call.success,
-            "error": call.error,
+            "success": row_success,
+            "error": error_message,
             "parse_applicable": task.parse_applicable,
-            "parse_success": parsed is not None,
+            "parse_success": parse_success,
             "latency_ms": round(call.latency_ms, 2),
             "prompt_tokens": call.usage["prompt_tokens"],
             "completion_tokens": call.usage["completion_tokens"],

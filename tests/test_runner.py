@@ -209,6 +209,21 @@ class SlowTrackingGateway(ModelGateway):
         )
 
 
+class _ParseErrorTask:
+    name = "parse_error_task"
+    version = "v1"
+    parse_applicable = True
+
+    def build_prompt(self, sample, context=None):
+        return [{"role": "user", "content": "x"}], "v1"
+
+    def parse(self, output):
+        raise RuntimeError("parse exploded")
+
+    def metrics(self, sample, output, parsed):
+        return {}
+
+
 # ── Task 模式测试 ─────────────────────────────────────────────────────
 
 def test_task_mode_record_count(registry: ModelRegistry, store: RunStore) -> None:
@@ -235,6 +250,28 @@ def test_task_mode_record_count(registry: ModelRegistry, store: RunStore) -> Non
     assert all(r["parse_success"] for r in records)
     assert all(r["task_metrics"].get("field_completeness") == 1.0 for r in records)
     assert all(r["schema_version"] == "result_row.v1" for r in records)
+
+
+def test_task_mode_parse_exception_isolated(monkeypatch: pytest.MonkeyPatch, registry: ModelRegistry, store: RunStore) -> None:
+    """task 模式 parse 异常不应中断 run，应落盘失败记录。"""
+    monkeypatch.setattr("eval.execution.task_runner.build_task", lambda _: _ParseErrorTask())
+    rows = asyncio.run(
+        _run_task_mode(
+            run_id=store.run_id,
+            store=store,
+            dataset=[_SAMPLE],
+            registry=registry,
+            task_name="ie_json",
+            model_ids=["m1"],
+            params_override={},
+            repeats=1,
+            gateway=FixedGateway({"*": "{}"}),
+        )
+    )
+    assert len(rows) == 1
+    assert rows[0]["success"] is False
+    assert rows[0]["parse_success"] is False
+    assert "parse_error" in rows[0]["error"]
 
 
 def test_task_metrics_appear_in_summary(registry: ModelRegistry, store: RunStore) -> None:
@@ -289,6 +326,34 @@ def test_workflow_happy_path_row_counts(tmp_path: Path, registry: ModelRegistry,
     assert len(e2e_rows) == 1
     assert e2e_rows[0]["success"] is True
     assert all(r["schema_version"] == "result_row.v1" for r in records)
+
+
+def test_workflow_parse_exception_isolated_as_failed_step(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    registry: ModelRegistry,
+    store: RunStore,
+) -> None:
+    """workflow 中 step parse 异常不应中断执行，应失败并触发下游 skip。"""
+    monkeypatch.setattr("eval.execution.workflow_runner.build_task", lambda _: _ParseErrorTask())
+    wf = load_workflow(_make_workflow_json(tmp_path))
+    rows = asyncio.run(
+        _run_workflow_mode(
+            run_id=store.run_id,
+            store=store,
+            dataset=[_SAMPLE],
+            registry=registry,
+            workflow=wf,
+            global_params={},
+            gateway=FixedGateway({"*": "{}"}),
+        )
+    )
+    step_rows = [r for r in rows if r["mode"] == "workflow_step"]
+    e2e = [r for r in rows if r["mode"] == "workflow_e2e"][0]
+    assert step_rows[0]["success"] is False
+    assert "parse_error" in step_rows[0]["error"]
+    assert any("upstream_" in r["error"] for r in step_rows[1:])
+    assert e2e["success"] is False
 
 
 def test_workflow_e2e_cost_accumulates(tmp_path: Path, store: RunStore) -> None:

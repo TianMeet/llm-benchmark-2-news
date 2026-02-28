@@ -117,29 +117,129 @@ async def run_workflow_mode(
                     continue
                 step_input = prev["parsed"]
 
-            if gateway.mock:
-                messages, prompt_version = [], "mock"
-            else:
-                messages, prompt_version = task.build_prompt(
-                    sample, context={"input": step_input, "step_outputs": step_outputs}
+            try:
+                if gateway.mock:
+                    messages, prompt_version = [], "mock"
+                else:
+                    messages, prompt_version = task.build_prompt(
+                        sample, context={"input": step_input, "step_outputs": step_outputs}
+                    )
+            except Exception as exc:
+                step_row = {
+                    "schema_version": RESULT_ROW_SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "mode": "workflow_step",
+                    "workflow_name": workflow.name,
+                    "workflow_version": workflow.version,
+                    "sample_id": sample_id,
+                    "task_name": task.name,
+                    "task_version": task.version,
+                    "step_id": step.id,
+                    "prompt_version": "error",
+                    "model_id": raw_model_id,
+                    "params": merged_params,
+                    "success": False,
+                    "error": f"build_prompt_error: {exc}",
+                    "parse_applicable": task.parse_applicable,
+                    "parse_success": False,
+                    "latency_ms": 0.0,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "retry_count": 0,
+                    "cost_estimate": 0.0,
+                    "from_cache": False,
+                    "output_text": "",
+                    "parsed": None,
+                    "task_metrics": {},
+                }
+                store.append_result(step_row)
+                sample_records.append(step_row)
+                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False}
+                final_output = None
+                e2e_success = False
+                continue
+
+            try:
+                call = await gateway.call(
+                    model_id=raw_model_id,
+                    task_name=task.name,
+                    sample=sample,
+                    sample_cache_id=f"{sample_id}:{step.id}:{task.name}",
+                    messages=messages,
+                    params_override=merged_params,
                 )
+            except Exception as exc:
+                step_row = {
+                    "schema_version": RESULT_ROW_SCHEMA_VERSION,
+                    "run_id": run_id,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "mode": "workflow_step",
+                    "workflow_name": workflow.name,
+                    "workflow_version": workflow.version,
+                    "sample_id": sample_id,
+                    "task_name": task.name,
+                    "task_version": task.version,
+                    "step_id": step.id,
+                    "prompt_version": prompt_version,
+                    "model_id": raw_model_id,
+                    "params": merged_params,
+                    "success": False,
+                    "error": f"gateway_error: {exc}",
+                    "parse_applicable": task.parse_applicable,
+                    "parse_success": False,
+                    "latency_ms": 0.0,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "retry_count": 0,
+                    "cost_estimate": 0.0,
+                    "from_cache": False,
+                    "output_text": "",
+                    "parsed": None,
+                    "task_metrics": {},
+                }
+                store.append_result(step_row)
+                sample_records.append(step_row)
+                step_outputs[step.id] = {"parsed": None, "raw": "", "success": False, "parse_success": False}
+                final_output = None
+                e2e_success = False
+                continue
 
-            call = await gateway.call(
-                model_id=raw_model_id,
-                task_name=task.name,
-                sample=sample,
-                sample_cache_id=f"{sample_id}:{step.id}:{task.name}",
-                messages=messages,
-                params_override=merged_params,
-            )
-
-            parsed = task.parse(call.content) if call.success else None
-            parse_success = parsed is not None
-            task_metrics = task.metrics(sample, call.content, parsed)
+            parsed = None
+            parse_success = False
+            task_metrics: dict[str, Any] = {}
+            row_success = bool(call.success)
+            error_message = call.error
+            if call.success:
+                try:
+                    parsed = task.parse(call.content)
+                    parse_success = parsed is not None
+                except Exception as exc:
+                    row_success = False
+                    parse_success = False
+                    error_message = (
+                        f"{error_message}; parse_error: {exc}"
+                        if error_message
+                        else f"parse_error: {exc}"
+                    )
+            else:
+                parse_success = False
+            try:
+                task_metrics = task.metrics(sample, call.content, parsed)
+            except Exception as exc:
+                row_success = False
+                error_message = (
+                    f"{error_message}; metrics_error: {exc}"
+                    if error_message
+                    else f"metrics_error: {exc}"
+                )
+                task_metrics = {}
             spec = registry.get(raw_model_id)
             cost = 0.0 if call.from_cache else estimate_cost(call.usage, spec.price_config)
 
-            e2e_success = e2e_success and call.success and (parse_success or not task.parse_applicable)
+            e2e_success = e2e_success and row_success and (parse_success or not task.parse_applicable)
             e2e_latency += call.latency_ms
             e2e_tokens += call.usage["total_tokens"]
             e2e_retry += call.retry_count
@@ -160,8 +260,8 @@ async def run_workflow_mode(
                 "prompt_version": prompt_version,
                 "model_id": raw_model_id,
                 "params": merged_params,
-                "success": call.success,
-                "error": call.error,
+                "success": row_success,
+                "error": error_message,
                 "parse_applicable": task.parse_applicable,
                 "parse_success": parse_success,
                 "latency_ms": round(call.latency_ms, 2),
