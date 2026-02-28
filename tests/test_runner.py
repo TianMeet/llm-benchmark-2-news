@@ -20,16 +20,16 @@ from typing import Any
 
 import pytest
 
-from eval.contracts.result import UnifiedCallResult
-from eval.cli.runner import run
-from eval.execution.gateway import ModelGateway
-from eval.execution.task_runner import run_task_mode as _run_task_mode
-from eval.execution.workflow_runner import run_workflow_mode as _run_workflow_mode
-from eval.metrics.aggregate import aggregate_records
-from eval.registry import ModelRegistry
-from eval.io.store import RunStore
-from eval.workflow import load_workflow
-from eval.workflow import WorkflowSpec, WorkflowStep
+from bench.contracts.result import UnifiedCallResult
+from bench.cli.runner import run
+from bench.execution.gateway import ModelGateway
+from bench.execution.task_runner import run_task_mode as _run_task_mode
+from bench.execution.workflow_runner import run_workflow_mode as _run_workflow_mode
+from bench.metrics.aggregate import aggregate_records
+from bench.registry import ModelRegistry
+from bench.io.store import RunStore
+from bench.workflow import load_workflow
+from bench.workflow import WorkflowSpec, WorkflowStep
 
 
 # ── 辅助：返回 from_cache=True 的 Gateway ────────────────────────────
@@ -224,6 +224,43 @@ class _ParseErrorTask:
         return {}
 
 
+class _TaskWithDefaultParams:
+    name = "task_with_defaults"
+    version = "v1"
+    parse_applicable = False
+    default_params = {"response_format": {"type": "json_object"}, "temperature": 0.0}
+
+    def build_prompt(self, sample, context=None):
+        return [{"role": "user", "content": "x"}], "v1"
+
+    def parse(self, output):
+        return None
+
+    def metrics(self, sample, output, parsed):
+        return {}
+
+
+class _CaptureParamsGateway(ModelGateway):
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    async def call(
+        self, *, model_id: str, task_name: str, sample: dict, sample_cache_id: str,
+        messages: list, params_override: dict,
+    ) -> UnifiedCallResult:
+        self.calls.append(dict(params_override))
+        return UnifiedCallResult(
+            content="{}",
+            usage={"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            latency_ms=1.0,
+            raw_response={},
+            success=True,
+            error="",
+            retry_count=0,
+            from_cache=False,
+        )
+
+
 # ── Task 模式测试 ─────────────────────────────────────────────────────
 
 def test_task_mode_record_count(registry: ModelRegistry, store: RunStore) -> None:
@@ -254,7 +291,7 @@ def test_task_mode_record_count(registry: ModelRegistry, store: RunStore) -> Non
 
 def test_task_mode_parse_exception_isolated(monkeypatch: pytest.MonkeyPatch, registry: ModelRegistry, store: RunStore) -> None:
     """task 模式 parse 异常不应中断 run，应落盘失败记录。"""
-    monkeypatch.setattr("eval.execution.task_runner.build_task", lambda _: _ParseErrorTask())
+    monkeypatch.setattr("bench.execution.task_runner.build_task", lambda _: _ParseErrorTask())
     rows = asyncio.run(
         _run_task_mode(
             run_id=store.run_id,
@@ -274,6 +311,28 @@ def test_task_mode_parse_exception_isolated(monkeypatch: pytest.MonkeyPatch, reg
     assert "parse_error" in rows[0]["error"]
 
 
+def test_task_default_params_are_merged(monkeypatch: pytest.MonkeyPatch, registry: ModelRegistry, store: RunStore) -> None:
+    """任务 default_params 应与 CLI params 合并后透传给 gateway。"""
+    monkeypatch.setattr("bench.execution.task_runner.build_task", lambda _: _TaskWithDefaultParams())
+    gw = _CaptureParamsGateway()
+    rows = asyncio.run(
+        _run_task_mode(
+            run_id=store.run_id,
+            store=store,
+            dataset=[_SAMPLE],
+            registry=registry,
+            task_name="dummy",
+            model_ids=["m1"],
+            params_override={"max_tokens": 123},
+            repeats=1,
+            gateway=gw,
+        )
+    )
+    assert len(rows) == 1
+    assert gw.calls and gw.calls[0]["response_format"] == {"type": "json_object"}
+    assert gw.calls[0]["max_tokens"] == 123
+
+
 def test_task_mode_streaming_without_global_gather(
     monkeypatch: pytest.MonkeyPatch,
     registry: ModelRegistry,
@@ -284,7 +343,7 @@ def test_task_mode_streaming_without_global_gather(
     async def _forbidden_gather(*args, **kwargs):
         raise AssertionError("global gather should not be used in run_task_mode")
 
-    monkeypatch.setattr("eval.execution.task_runner.asyncio.gather", _forbidden_gather)
+    monkeypatch.setattr("bench.execution.task_runner.asyncio.gather", _forbidden_gather)
     rows = asyncio.run(
         _run_task_mode(
             run_id=store.run_id,
@@ -374,7 +433,7 @@ def test_workflow_parse_exception_isolated_as_failed_step(
     store: RunStore,
 ) -> None:
     """workflow 中 step parse 异常不应中断执行，应失败并触发下游 skip。"""
-    monkeypatch.setattr("eval.execution.workflow_runner.build_task", lambda _: _ParseErrorTask())
+    monkeypatch.setattr("bench.execution.workflow_runner.build_task", lambda _: _ParseErrorTask())
     wf = load_workflow(_make_workflow_json(tmp_path))
     rows = asyncio.run(
         _run_workflow_mode(
@@ -510,14 +569,14 @@ def test_workflow_skip_row_respects_task_parse_applicable(
         def metrics(self, sample, output, parsed):
             return {}
 
-    from eval.tasks import build_task as _real_build_task
+    from bench.tasks import build_task as _real_build_task
 
     def _patched_build_task(task_name: str):
         if task_name == "no_parse":
             return _NoParseTask()
         return _real_build_task(task_name)
 
-    monkeypatch.setattr("eval.execution.workflow_runner.build_task", _patched_build_task)
+    monkeypatch.setattr("bench.execution.workflow_runner.build_task", _patched_build_task)
 
     wf = WorkflowSpec(
         name="skip_parse_applicable_test",

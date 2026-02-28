@@ -1,6 +1,6 @@
 # 系统架构（当前实现审阅版）
 
-本文档基于当前代码实现（`eval/` + `llm_core/`）整理，不是目标态设计图。
+本文档基于当前代码实现（`bench/` + `llm_core/`）整理，不是目标态设计图。
 
 ## 1. 架构总览图
 
@@ -18,29 +18,29 @@ flowchart TB
     %% ─────────── 输入层 ───────────
     subgraph INPUT["  📥 INPUT — 输入层  "]
         direction LR
-        CLI["🖥️ CLI\npython -m eval.cli.runner"]
+        CLI["🖥️ CLI\npython -m bench.cli.runner"]
         DS["📄 Dataset\n*.jsonl"]
         WF_YAML["📋 Workflow Spec\nnews_pipeline.yaml"]
         REG_YAML["⚙️ Model Registry\nllm_providers.yaml"]
     end
 
     %% ─────────── 编排层 ───────────
-    subgraph ORCH["  🎛️ ORCHESTRATOR — 编排层 (eval/)  "]
+    subgraph ORCH["  🎛️ ORCHESTRATOR — 编排层 (bench/)  "]
         direction TB
-        RUNNER["🏃 Runner\nrunner.py\n单任务 / workflow 入口"]
+        RUNNER["🏃 Runner\ncli/runner.py\n单任务 / workflow 入口"]
         WFL["🔀 WorkflowLoader\nworkflow.py\nstep 依赖 & input_from"]
         REG["📦 ModelRegistry\nregistry.py\n模型注册 + 成本估算"]
-        GATE["🚪 LLMGateway\ngateway.py\n统一调用门面"]
-        CACHE["💾 EvalCache\ncache.py\nmodel+params+messages 键"]
-        MET["📊 Metrics\nmetrics.py\naggregate_records()"]
-        REP["📝 Reporter\nreporter.py\nMarkdownReporter"]
+        GATE["🚪 LLMGateway\nexecution/gateway.py\n统一调用门面"]
+        CACHE["💾 EvalCache\nio/cache.py\nmodel+params+messages 键"]
+        MET["📊 Metrics\nmetrics/aggregate.py\naggregate_records()"]
+        REP["📝 Reporter\nreporting/reporter.py\nMarkdownReporter"]
 
-        subgraph TASKS["  任务插件层 (eval/tasks/)  "]
+        subgraph TASKS["  任务插件层 (bench/tasks/)  "]
             direction LR
             T_BASE["🔧 EvalTask\nbase.py\n抽象基类"]
-            T_IE["📌 IEJsonTask\nie_json.py"]
-            T_STOCK["📈 StockScoreTask\nstock_score.py"]
-            T_DEDUP["🗞️ NewsDedupTask\nnews_dedup.py"]
+            T_IE["📌 Task YAML\nie_json.yaml"]
+            T_STOCK["📈 Task YAML\nstock_score.yaml"]
+            T_DEDUP["🗞️ Task YAML\nnews_dedup.yaml"]
             T_GEN["⚡ GenericTask\ngeneric.py"]
         end
     end
@@ -56,9 +56,9 @@ flowchart TB
     end
 
     %% ─────────── 存储层 ───────────
-    subgraph STORE_L["  🗄️ STORE — 存储层 (eval/)  "]
+    subgraph STORE_L["  🗄️ STORE — 存储层 (bench/)  "]
         direction LR
-        RSTORE["📁 RunStore\nstore.py\n产物读写抽象"]
+        RSTORE["📁 RunStore\nio/store.py\n产物读写抽象"]
         DATA_DIR["📂 runs/{timestamp}/"]
     end
 
@@ -75,6 +75,9 @@ flowchart TB
     subgraph OUTPUT["  📤 OUTPUT — 输出产物  "]
         direction LR
         O_CFG["📄 config.json\n运行配置快照"]
+        O_META["🧾 run_meta.json\n运行元信息"]
+        O_DFP["🧬 dataset_fingerprint.json\n数据集指纹"]
+        O_MSNAP["🤖 model_snapshot.json\n模型参数快照(脱敏)"]
         O_RES["📊 results.jsonl\n逐条结果 v1"]
         O_SUM["📋 summary.csv\n聚合统计 v1"]
         O_RPT["📝 report.md\n可读报告"]
@@ -125,7 +128,7 @@ flowchart TB
     REP --> RSTORE
     RSTORE --> DATA_DIR
 
-    DATA_DIR --> O_CFG & O_RES & O_SUM & O_RPT
+    DATA_DIR --> O_CFG & O_META & O_DFP & O_MSNAP & O_RES & O_SUM & O_RPT
 
     CONFIGS -.->|"加载"| REG & RUNNER & OAI
     DATASETS -.->|"读取"| RUNNER
@@ -137,7 +140,7 @@ flowchart TB
     class CLIENT_F,OAI,PROMPT,PARSER,BATCH model
     class RSTORE,DATA_DIR store
     class DEEPSEEK,KIMI,GPT,OTHERS api
-    class O_CFG,O_RES,O_SUM,O_RPT output
+    class O_CFG,O_META,O_DFP,O_MSNAP,O_RES,O_SUM,O_RPT output
 ```
 
 ## 2. 执行时序（workflow 模式）
@@ -154,9 +157,12 @@ sequenceDiagram
   participant S as RunStore
   participant A as API
 
-  U->>R: python -m eval.cli.runner --workflow ...
+  U->>R: python -m bench.cli.runner --workflow ...
   R->>W: load_workflow()
   R->>S: write_config(config.json)
+  R->>S: write_run_meta(run_meta.json)
+  R->>S: write_dataset_fingerprint(dataset_fingerprint.json)
+  R->>S: write_model_snapshot(model_snapshot.json)
 
   loop each sample
     loop each workflow step
@@ -186,15 +192,15 @@ sequenceDiagram
 
 ## 3. 当前实现要点（审阅结论）
 
-1. 架构分层清晰：`runner` 负责编排，`gateway` 负责调用与缓存，`registry` 负责模型配置解析，`store/report` 负责产物落盘与展示。
-2. 数据闭环完整：每次运行都会产出 `config/results/summary/report`，满足最小可复现要求。
+1. 架构分层清晰：`cli/runner` 负责编排，`execution/gateway` 负责调用与缓存，`registry` 负责模型配置解析，`io/store + reporting` 负责产物落盘与展示。
+2. 数据闭环完整：每次运行都会产出 `config + run_meta + dataset_fingerprint + model_snapshot + results + summary + report`。
 3. workflow 依赖关系通过 `input_from` + 上游 `parse_success` 控制，失败会写入 `skipped` 记录并继续执行后续样本。
 4. 当前并发能力：
    - task 模式支持按模型并发（`--concurrency`，模型级 semaphore）。
    - workflow 模式支持样本级并发（`--workflow-concurrency`），单样本内 step 仍保持顺序依赖。
 5. 缓存命中粒度合理：键由 `model + params + messages + sample_cache_id` 组成，能覆盖 task/workflow 的重复调用复用。
 6. `LLMGateway` 已对相同 `model_id + params_override` 复用 client，降低重复建连开销。
-7. 运行产物已带版本契约：`results.schema_version=result_row.v1`、`summary.schema_version=summary_row.v1`，`config.json` 含 `scorer_version`。
+7. 运行产物已带版本契约：`results.schema_version=result_row.v1`、`summary.schema_version=summary_row.v1`，并在 `run_meta.json` 中记录运行环境与版本字段。
 
 ## 4. 建议的下一步演进
 

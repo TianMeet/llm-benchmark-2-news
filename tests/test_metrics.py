@@ -1,4 +1,4 @@
-from eval.metrics.aggregate import aggregate_records
+from bench.metrics.aggregate import aggregate_records
 
 
 def test_aggregate_records_basic() -> None:

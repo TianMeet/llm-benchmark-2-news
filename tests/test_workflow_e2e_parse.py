@@ -2,11 +2,11 @@ import asyncio
 import json
 from pathlib import Path
 
-from eval.contracts.result import UnifiedCallResult
-from eval.execution.workflow_runner import run_workflow_mode as _run_workflow_mode
-from eval.registry import ModelRegistry
-from eval.io.store import RunStore
-from eval.workflow import WorkflowSpec, WorkflowStep
+from bench.contracts.result import UnifiedCallResult
+from bench.execution.workflow_runner import run_workflow_mode as _run_workflow_mode
+from bench.registry import ModelRegistry
+from bench.io.store import RunStore
+from bench.workflow import WorkflowSpec, WorkflowStep
 
 
 class _FixedGateway:

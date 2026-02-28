@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from eval.tasks.generic import GenericTask
+from bench.tasks.generic import GenericTask
 
 
 def _write_task_yaml(tmp_path: Path) -> Path:

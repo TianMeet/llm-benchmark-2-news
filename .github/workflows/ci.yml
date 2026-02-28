@@ -58,4 +58,43 @@ jobs:
         run: pip install ruff
 
       - name: Lint with ruff
-        run: ruff check eval/ llm_core/ tests/ --select E,W,F --ignore E501
+        run: ruff check bench/ llm_core/ tests/ --select E,W,F --ignore E501
+
+  smoke-eval:
+    name: smoke eval (mock)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run task smoke eval
+        run: |
+          python -m bench.cli.runner \
+            --task ie_json \
+            --dataset datasets/demo_news.jsonl \
+            --models deepseek-v3 \
+            --model-registry configs/llm_providers.json \
+            --mock \
+            --max-samples 2 \
+            --out runs/
+
+      - name: Run workflow smoke eval
+        run: |
+          python -m bench.cli.runner \
+            --workflow workflows/news_pipeline.json \
+            --dataset datasets/demo_news.jsonl \
+            --model-registry configs/llm_providers.json \
+            --mock \
+            --max-samples 2 \
+            --out runs/

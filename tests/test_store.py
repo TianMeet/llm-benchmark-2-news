@@ -1,6 +1,6 @@
 import json
 
-from eval.io.store import RunStore
+from bench.io.store import RunStore
 
 
 def test_run_store_writes_files(tmp_path) -> None:

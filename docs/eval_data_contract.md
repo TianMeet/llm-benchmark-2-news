@@ -29,11 +29,12 @@
 
 ## 2. 任务契约（YAML）
 
-在 `eval/tasks/<task>.yaml` 定义：
+在 `bench/tasks/<task>.yaml` 定义：
 
-1. `prompt_template`：提示词模板名（对应 `eval/prompts/<name>.yaml`）。
+1. `prompt_template`：提示词模板名（对应 `bench/prompts/<name>.yaml`）。
 2. `parse_schema`：LLM 输出 JSON 的结构与校验规则。
 3. `metrics`：预测值与真实值的对比规则。
+4. `default_params`（可选）：任务级模型参数（例如 `response_format`、`temperature`）。
 
 备注：当输出字段是对象列表（例如 `claims=[{"text":"...","evidence":[...]}]`）时，`parse_schema` 建议用 `type: list_raw` 保留原始结构，便于后续指标计算。
 
@@ -54,6 +55,9 @@
 name: event_eval
 version: v1
 prompt_template: ie_json
+default_params:
+  response_format:
+    type: json_object
 serialize_fields:
   - news_items
 
@@ -90,7 +94,7 @@ metrics:
 ## 3. 运行方式
 
 ```bash
-python -m eval.cli.runner \
+python -m bench.cli.runner \
   --task event_eval \
   --dataset datasets/your_data.jsonl \
   --models deepseek-v3 \
@@ -103,6 +107,7 @@ python -m eval.cli.runner \
 1. `results.jsonl`：逐样本预测与解析结果。
 2. `summary.csv`：聚合指标（含 `tm_*` 指标列）。
 3. `report.md`：可读报告。
+4. `run_meta.json` / `dataset_fingerprint.json` / `model_snapshot.json`：复现与审计辅助产物。
 
 ## 4. 推荐实践
 

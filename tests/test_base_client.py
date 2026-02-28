@@ -23,7 +23,7 @@ def test_no_sleep_on_last_failed_attempt(monkeypatch) -> None:
         sleeps.append(delay)
 
     monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
-    client = _AlwaysRetryableClient({"max_retries": 0, "retry_delay": 0.2})
+    client = _AlwaysRetryableClient({"max_retries": 0, "retry_delay": 0.2, "retry_jitter": 0.0})
     resp = asyncio.run(client.complete([]))
 
     assert resp.success is False
@@ -37,7 +37,7 @@ def test_sleep_only_between_attempts(monkeypatch) -> None:
         sleeps.append(delay)
 
     monkeypatch.setattr(asyncio, "sleep", _fake_sleep)
-    client = _AlwaysRetryableClient({"max_retries": 2, "retry_delay": 0.5})
+    client = _AlwaysRetryableClient({"max_retries": 2, "retry_delay": 0.5, "retry_jitter": 0.0})
     resp = asyncio.run(client.complete([]))
 
     assert resp.success is False

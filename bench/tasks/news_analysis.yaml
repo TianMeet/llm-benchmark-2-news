@@ -1,0 +1,39 @@
+name: news_analysis
+version: v1
+prompt_template: news_analysis   # 引用 bench/prompts/news_analysis.yaml
+
+# news_body / news_title 为普通字符串，直接注入模板，无需 serialize_fields
+
+# ── 字段映射 ─────────────────────────────────────────────────────────
+# 将数据集原始字段名映射为任务内规范字段名。
+# 格式：{数据集字段名: 规范字段名}
+# 作用：build_prompt 模板变量 & metrics 中的 label_field / reference_field
+#       均可直接使用规范名，切换数据集只需修改此处，而无需改动 metrics 配置。
+field_mapping:
+  gt_summary: ref_summary       # news_summary_eval.jsonl → 规范摘要参考
+  gt_sentiment: label_sentiment  # news_summary_eval.jsonl → 规范情感标签
+
+parse_schema:
+  - field: summary
+    type: str
+    default: ""
+  - field: sentiment
+    type: enum
+    values: [positive, neutral, negative]
+    default: neutral
+
+metrics:
+  # 1. 输出字段完整性
+  - type: field_completeness
+    fields: [summary, sentiment]
+
+  # 2. 摘要质量：与规范字段 ref_summary 做 ROUGE-1 对比（来源由 field_mapping 决定）
+  - type: reference_rouge
+    output_field: summary
+    reference_field: ref_summary
+
+  # 3. 情感分类准确率：与规范字段 label_sentiment 做精确匹配
+  - type: exact_match
+    name: sentiment_acc
+    pred_field: sentiment
+    label_field: label_sentiment

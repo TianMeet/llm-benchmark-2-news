@@ -1,10 +1,10 @@
-"""eval.contracts 模块契约测试（P1: ResultRow 强类型化）。"""
+"""bench.contracts 模块契约测试（P1: ResultRow 强类型化）。"""
 
 from __future__ import annotations
 
 import dataclasses
 import pytest
-from eval.contracts.result import UnifiedCallResult, ResultRow
+from bench.contracts.result import UnifiedCallResult, ResultRow
 
 
 # ── ResultRow 强类型契约 ──────────────────────────────────────────────

@@ -1,6 +1,6 @@
 """ie_json 任务测试 — 通过 build_task() 加载 YAML 驱动的 GenericTask。"""
 
-from eval.tasks import build_task
+from bench.tasks import build_task
 
 
 def test_ie_json_parse_and_metrics() -> None:
@@ -16,7 +16,7 @@ def test_ie_json_parse_and_metrics() -> None:
 
 
 def test_new_task_auto_discovered() -> None:
-    """eval/tasks/ 下任意 YAML 文件均可被自动发现，无需改 Python 代码。"""
+    """bench/tasks/ 下任意 YAML 文件均可被自动发现，无需改 Python 代码。"""
     task = build_task("stock_score")
     assert task.name == "stock_score"
     assert task.parse_applicable is True

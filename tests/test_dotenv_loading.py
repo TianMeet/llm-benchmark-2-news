@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from eval.registry import ModelRegistry
+from bench.registry import ModelRegistry
 from llm_core.config import load_yaml
 
 

@@ -4,6 +4,7 @@ LLM 客户端抽象基类 + 标准化响应数据类
 
 import asyncio
 import logging
+import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -22,6 +23,9 @@ class LLMResponse:
     success: bool = True
     error_message: str = ""
     retry_count: int = 0
+    error_type: str = ""
+    error_stage: str = ""
+    error_code: str = ""
 
 
 class BaseLLMClient(ABC):
@@ -38,7 +42,14 @@ class BaseLLMClient(ABC):
         self.timeout = config.get("timeout", 30)
         self.max_retries = config.get("max_retries", 2)
         self.retry_delay = config.get("retry_delay", 2.0)
+        self.retry_jitter = float(config.get("retry_jitter", 0.2))
         self.seed: int | None = config.get("seed", None)
+
+    def _with_jitter(self, delay: float) -> float:
+        if self.retry_jitter <= 0:
+            return max(0.0, delay)
+        jitter = random.uniform(0.0, delay * self.retry_jitter)
+        return max(0.0, delay + jitter)
 
     async def complete(self, messages: list[dict]) -> LLMResponse:
         """
@@ -48,6 +59,7 @@ class BaseLLMClient(ABC):
         子类通过 _do_complete() 实现单次 API 调用。
         """
         last_error = None
+        last_error_code = "unknown_error"
         for attempt in range(self.max_retries + 1):
             t0 = time.perf_counter()
             try:
@@ -57,7 +69,8 @@ class BaseLLMClient(ABC):
 
             except self.RATE_LIMIT_ERRORS as e:
                 last_error = str(e)
-                delay = self.retry_delay * (2 ** attempt) + 3.0
+                last_error_code = "rate_limit"
+                delay = self._with_jitter(self.retry_delay * (2 ** attempt) + 3.0)
                 if attempt < self.max_retries:
                     logger.warning(
                         "Rate limited (attempt %d/%d), retrying in %.1fs: %s",
@@ -67,7 +80,8 @@ class BaseLLMClient(ABC):
 
             except self.RETRYABLE_ERRORS as e:
                 last_error = str(e)
-                delay = self.retry_delay * (2 ** attempt)
+                last_error_code = "retryable_api_error"
+                delay = self._with_jitter(self.retry_delay * (2 ** attempt))
                 if attempt < self.max_retries:
                     logger.warning(
                         "API error (attempt %d/%d), retrying in %.1fs: %s",
@@ -84,6 +98,9 @@ class BaseLLMClient(ABC):
                     model=self.model,
                     latency_ms=latency_ms,
                     retry_count=attempt,
+                    error_type="gateway_failure",
+                    error_stage="gateway",
+                    error_code="non_retryable_api_error",
                 )
 
         return LLMResponse(
@@ -92,6 +109,9 @@ class BaseLLMClient(ABC):
             model=self.model,
             latency_ms=0.0,
             retry_count=self.max_retries,
+            error_type="rate_limit" if last_error_code == "rate_limit" else "gateway_failure",
+            error_stage="gateway",
+            error_code=f"{last_error_code}_max_retries_exceeded",
         )
 
     @abstractmethod

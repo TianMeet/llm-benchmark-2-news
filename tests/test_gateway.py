@@ -1,7 +1,7 @@
 import asyncio
 
-from eval.execution.gateway import LLMGateway
-from eval.registry import ModelRegistry
+from bench.execution.gateway import LLMGateway
+from bench.registry import ModelRegistry
 
 
 def test_gateway_mock_call() -> None:
@@ -105,7 +105,7 @@ def test_gateway_does_not_reuse_client_when_params_differ() -> None:
 
 def test_task_has_mock_response_method() -> None:
     """P1: GenericTask 必须暴露 mock_response(sample) 方法（解耦前不存在）。"""
-    from eval.tasks import build_task
+    from bench.tasks import build_task
     task = build_task("ie_json")
     assert hasattr(task, "mock_response"), (
         "GenericTask 应提供 mock_response() 方法，使 Gateway 不再需要硬编码任务名"
@@ -115,7 +115,7 @@ def test_task_has_mock_response_method() -> None:
 def test_task_mock_response_returns_valid_json_string() -> None:
     """P1: mock_response() 应返回可 JSON 解析的字符串，内容来自 YAML 定义。"""
     import json
-    from eval.tasks import build_task
+    from bench.tasks import build_task
 
     sample = {"ticker": "TSLA", "news_items": []}
     for task_name in ("ie_json", "stock_score", "news_dedup"):
@@ -129,7 +129,7 @@ def test_task_mock_response_returns_valid_json_string() -> None:
 def test_task_mock_response_ie_json_has_ticker_field() -> None:
     """P1: ie_json 的 mock_response 内容必须包含 ticker 字段（覆盖现有 gateway 测试预期）。"""
     import json
-    from eval.tasks import build_task
+    from bench.tasks import build_task
 
     task = build_task("ie_json")
     content = task.mock_response({"ticker": "AAPL"})
@@ -140,7 +140,7 @@ def test_task_mock_response_ie_json_has_ticker_field() -> None:
 def test_gateway_mock_delegates_to_task_not_hardcoded() -> None:
     """P1: mock=True 时 gateway 应委托 task.mock_response()，不得在 gateway 内保留 if/elif 任务名判断。"""
     import inspect
-    from eval.execution.gateway import LLMGateway
+    from bench.execution.gateway import LLMGateway
 
     source = inspect.getsource(LLMGateway._mock_response)
     # 修复后 gateway 内不应再有形如 task_name == "ie_json" 的硬编码

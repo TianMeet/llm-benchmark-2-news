@@ -7,8 +7,8 @@ import threading
 
 import pytest
 
-from eval.io.cache import EvalCache
-from eval.io.store import RunStore
+from bench.io.cache import EvalCache
+from bench.io.store import RunStore
 
 
 # ─────────────────────────────────────────────────────────────────────────────

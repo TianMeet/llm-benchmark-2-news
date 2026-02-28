@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from eval.workflow import load_workflow
+from bench.workflow import load_workflow
 
 
 def test_load_workflow(tmp_path) -> None:

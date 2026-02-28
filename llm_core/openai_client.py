@@ -36,6 +36,9 @@ class OpenAICompatibleClient(BaseLLMClient):
             "OpenAI-compatible client initialized (model=%s, base_url=%s)",
             self.model, base_url,
         )
+        self.top_p = config.get("top_p")
+        self.stop = config.get("stop")
+        self.response_format = config.get("response_format")
 
     async def _do_complete(self, messages: list[dict]) -> LLMResponse:
         """执行单次 Chat Completions API 调用。"""
@@ -48,6 +51,12 @@ class OpenAICompatibleClient(BaseLLMClient):
         )
         if self.seed is not None:
             kwargs["seed"] = self.seed
+        if self.top_p is not None:
+            kwargs["top_p"] = self.top_p
+        if self.stop is not None:
+            kwargs["stop"] = self.stop
+        if self.response_format is not None:
+            kwargs["response_format"] = self.response_format
         response = await self.client.chat.completions.create(**kwargs)
         latency_ms = (time.perf_counter() - t0) * 1000
 
