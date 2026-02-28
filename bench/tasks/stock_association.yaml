@@ -1,0 +1,31 @@
+name: stock_association
+version: v1
+prompt_template: stock_association   # 引用 bench/prompts/stock_association.yaml
+
+# answer_type: list — 答案为列表类型，对应 list_overlap 指标
+answer_type: list
+
+# 默认模型参数
+default_params:
+  response_format:
+    type: json_object
+
+parse_schema:
+  - field: stocks
+    type: list
+    max_len: 100
+
+# mock_response: Gateway mock 模式返回的静态内容
+mock_response:
+  stocks: ["000001", "000002", "000003"]
+
+metrics:
+  # 1. 输出字段完整性
+  - type: field_completeness
+    fields: [stocks]
+
+  # 2. 核心关联股票召回评估（precision / recall / F1）
+  - type: list_overlap
+    name: stock_recall
+    pred_field: stocks
+    label_field: gt_stocks
