@@ -7,7 +7,7 @@
       "api_key": "${MOONSHOT_API_KEY}",
       "base_url": "https://api.moonshot.cn/v1",
       "temperature": 1,
-      "max_tokens": 512,
+      "max_tokens": 4096,
       "timeout": 120,
       "max_retries": 3,
       "retry_delay": 3.0,

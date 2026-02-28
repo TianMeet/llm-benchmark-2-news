@@ -2,27 +2,39 @@
 LLM 响应解析器 — 通用 JSON 提取 + 字段校验工具（零业务逻辑）
 """
 
+import ast
 import json
 import logging
 import re
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_first_json_object(text: str) -> str | None:
-    """
-    通过追踪 {} 括号深度，提取文本中第一个完整的 JSON 对象。
+@dataclass(frozen=True)
+class JsonParseMeta:
+    """JSON 解析结果元信息。"""
 
-    感知字符串上下文：在双引号内的花括号不影响深度计数，
-    避免 JSON 值中包含 { } 时导致提取截断。
+    data: dict | None
+    reason: str
+    strategy: str
 
-    使用 escape_next 状态机正确处理连续转义（如 \\\\" 中 \\\\ 是转义反斜杠，
-    后面的 " 是真正的引号结束符）。
+
+def _extract_first_balanced_json(text: str) -> tuple[str | None, bool]:
     """
-    depth = 0
+    提取文本中第一个完整 JSON（对象或数组）。
+
+    返回值: (candidate, truncated)
+    - candidate: 提取到的 JSON 片段；未提取到时为 None
+    - truncated: 检测到 JSON 起始但未闭合（疑似被截断）
+    """
+    stack: list[str] = []
     start = None
     in_string = False
     escape_next = False
+    truncated = False
+    pairs = {"}": "{", "]": "["}
+
     for i, ch in enumerate(text):
         if in_string:
             if escape_next:
@@ -35,15 +47,177 @@ def _extract_first_json_object(text: str) -> str | None:
             if ch == '"':
                 in_string = True
                 escape_next = False
-            elif ch == '{':
-                if depth == 0:
+            elif ch in "{[":
+                if not stack:
                     start = i
-                depth += 1
-            elif ch == '}':
-                depth -= 1
-                if depth == 0 and start is not None:
-                    return text[start:i+1]
+                stack.append(ch)
+            elif ch in "}]":
+                if not stack:
+                    continue
+                if stack[-1] == pairs[ch]:
+                    stack.pop()
+                    if not stack and start is not None:
+                        return text[start:i + 1], False
+                else:
+                    # 不匹配时重置，继续向后寻找下一个候选
+                    stack.clear()
+                    start = None
+    if start is not None and stack:
+        truncated = True
+    return None, truncated
+
+
+def _extract_first_fenced_block(text: str) -> str | None:
+    """提取第一个 markdown 代码块内容。"""
+    m = re.search(r"```(?:json|JSON|javascript|js|python|py)?\s*([\s\S]*?)```", text)
+    if not m:
+        return None
+    return m.group(1).strip()
+
+
+def _normalize_common_json_text(text: str) -> str:
+    """归一化常见全角/智能引号符号，降低模型输出格式噪声。"""
+    mapping = {
+        "\ufeff": "",
+        "\u200b": "",
+        "\u200c": "",
+        "\u200d": "",
+        "“": '"',
+        "”": '"',
+        "‘": "'",
+        "’": "'",
+        "，": ",",
+        "：": ":",
+        "｛": "{",
+        "｝": "}",
+        "［": "[",
+        "］": "]",
+    }
+    for src, dst in mapping.items():
+        text = text.replace(src, dst)
+    return text
+
+
+def _strip_json_comments(text: str) -> str:
+    """移除 JSON 外层的 // 与 /* */ 注释（字符串内保持不变）。"""
+    out: list[str] = []
+    i = 0
+    in_string = False
+    escape_next = False
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        if in_string:
+            out.append(ch)
+            if escape_next:
+                escape_next = False
+            elif ch == "\\":
+                escape_next = True
+            elif ch == '"':
+                in_string = False
+            i += 1
+            continue
+        if ch == '"':
+            in_string = True
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "/" and nxt == "/":
+            i += 2
+            while i < n and text[i] not in "\r\n":
+                i += 1
+            continue
+        if ch == "/" and nxt == "*":
+            i += 2
+            while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _remove_trailing_commas(text: str) -> str:
+    """移除对象/数组闭合前的尾逗号。"""
+    old = None
+    new = text
+    while old != new:
+        old = new
+        new = re.sub(r",\s*([}\]])", r"\1", new)
+    return new
+
+
+def _try_json_loads(candidate: str) -> object | None:
+    try:
+        return json.loads(candidate)
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None
+
+
+def _try_python_literal(candidate: str) -> object | None:
+    """容忍单引号字典/列表等 Python 字面量风格输出。"""
+    try:
+        return ast.literal_eval(candidate)
+    except Exception:
+        return None
+
+
+def _parse_candidate_as_object(candidate: str) -> dict | None:
+    """把候选文本尽力解析为 dict。"""
+    if not candidate.strip():
+        return None
+
+    # 1) 严格 JSON
+    parsed = _try_json_loads(candidate)
+    if isinstance(parsed, dict):
+        return parsed
+
+    # 2) 归一化 + 注释/尾逗号修复
+    normalized = _remove_trailing_commas(_strip_json_comments(_normalize_common_json_text(candidate))).strip()
+    parsed = _try_json_loads(normalized)
+    if isinstance(parsed, dict):
+        return parsed
+
+    # 3) Python 字面量回退（单引号等）
+    parsed = _try_python_literal(normalized)
+    if isinstance(parsed, dict):
+        return parsed
     return None
+
+
+def parse_llm_json_with_meta(text: str) -> JsonParseMeta:
+    """鲁棒 JSON 解析，返回结果 + 失败原因 + 命中策略。"""
+    if not isinstance(text, str):
+        return JsonParseMeta(data=None, reason="non_string", strategy="none")
+
+    raw = _normalize_common_json_text(text).strip()
+    if not raw:
+        return JsonParseMeta(data=None, reason="empty", strategy="none")
+
+    # 策略 1: 全文直接解析/修复
+    obj = _parse_candidate_as_object(raw)
+    if obj is not None:
+        return JsonParseMeta(data=obj, reason="ok", strategy="full_text")
+
+    # 策略 2: 提取 markdown fenced code block
+    fenced = _extract_first_fenced_block(raw)
+    if fenced:
+        obj = _parse_candidate_as_object(fenced)
+        if obj is not None:
+            return JsonParseMeta(data=obj, reason="ok", strategy="fenced_block")
+
+    # 策略 3: 括号平衡提取首个 JSON 片段
+    balanced, truncated = _extract_first_balanced_json(raw)
+    if balanced:
+        obj = _parse_candidate_as_object(balanced)
+        if obj is not None:
+            return JsonParseMeta(data=obj, reason="ok", strategy="balanced_extract")
+
+    if truncated:
+        return JsonParseMeta(data=None, reason="truncated", strategy="balanced_extract")
+    return JsonParseMeta(data=None, reason="invalid_json", strategy="none")
 
 
 def parse_llm_json(text: str) -> dict | None:
@@ -60,32 +234,7 @@ def parse_llm_json(text: str) -> dict | None:
     dict | None
         解析成功返回 dict，全部失败返回 None
     """
-    text = text.strip()
-
-    # 策略 1: 直接解析
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    # 策略 2: 括号平衡提取第一个完整 JSON 对象
-    json_str = _extract_first_json_object(text)
-    if json_str:
-        try:
-            return json.loads(json_str)
-        except (json.JSONDecodeError, ValueError):
-            pass
-
-    # 策略 3: 去掉 markdown 代码块标记
-    cleaned = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
-    cleaned = re.sub(r'\s*```\s*$', '', cleaned, flags=re.MULTILINE)
-    cleaned = cleaned.strip()
-    try:
-        return json.loads(cleaned)
-    except (json.JSONDecodeError, ValueError):
-        pass
-
-    return None
+    return parse_llm_json_with_meta(text).data
 
 
 # ======================================================================

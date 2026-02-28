@@ -10,7 +10,9 @@ except ModuleNotFoundError:  # pragma: no cover
     def call_llm_batch(*args, **kwargs):  # type: ignore[no-redef]
         raise ModuleNotFoundError("openai package is required. Install with: pip install openai")
 from llm_core.response_parser import (
+    JsonParseMeta,
     parse_llm_json,
+    parse_llm_json_with_meta,
     validate_str_field,
     validate_list_field,
     validate_enum_field,
@@ -77,6 +79,8 @@ __all__ = [
     "call_llm_batch",
     # 响应解析
     "parse_llm_json",
+    "parse_llm_json_with_meta",
+    "JsonParseMeta",
     "validate_str_field",
     "validate_list_field",
     "validate_enum_field",
