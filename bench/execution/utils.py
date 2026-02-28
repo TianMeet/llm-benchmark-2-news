@@ -1,4 +1,16 @@
-"""runner 共享常量与辅助函数 — 供 runner_task / runner_workflow / runner 共同使用。"""
+"""
+runner 共享常量与辅助函数。
+
+供 task_runner / workflow_runner / cli.runner 共同使用，
+包含：
+- 版本常量：RESULT_ROW_SCHEMA_VERSION / SCORER_VERSION
+- 数据集加载：load_dataset()
+- Git 信息采集：git_commit_hash() / git_is_dirty()
+- 数据集指纹：sha256_file() / dataset_fingerprint()
+- 运行时元数据：runtime_metadata()  # python 版本、平台
+- 敏感字段脱敏：redact_sensitive_fields()  # api_key 等替换为 ***
+- CLI 参数解析：parse_params() / parse_workflow_models() / resolve_concurrency()
+"""
 
 from __future__ import annotations
 

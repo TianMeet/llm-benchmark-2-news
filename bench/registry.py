@@ -1,4 +1,15 @@
-"""模型注册表抽象：统一读取模型配置并创建客户端。"""
+"""模型注册表：统一读取模型配置并创建客户端。
+
+支持 JSON 和 YAML 两种格式的注册表文件：
+- configs/llm_providers.json （默认，适合 CI）
+- configs/llm_providers.yaml （本地开发，带中文注释）
+
+核心功能：
+- ${ENV_VAR} 环境变量解析 + .env 文件自动加载
+- 未解析的 api_key 提前检测，避免深层 API 报错
+- estimate_cost()：按每千 token 单价估算调用成本
+- create_client()：懒加载 llm_core 并创建对应 provider 的客户端
+"""
 
 from __future__ import annotations
 

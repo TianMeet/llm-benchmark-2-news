@@ -1,4 +1,16 @@
-"""评测指标聚合工具。"""
+"""评测指标聚合工具。
+
+将 results.jsonl 中的明细记录按 (task_name, model_id, step_id) 维度聚合，
+输出到 summary.csv。
+
+核心指标：
+- request_count / success_count / success_rate
+- avg_latency_ms / p95_latency_ms
+- avg_total_tokens / p95_total_tokens
+- parse_rate
+- retry_count / cost_estimate
+- tm_{metric}_avg  — 任务特定指标的均值（自动从 task_metrics 中提取）
+"""
 
 from __future__ import annotations
 

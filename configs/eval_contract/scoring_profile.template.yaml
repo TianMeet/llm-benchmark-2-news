@@ -1,4 +1,14 @@
 # 统一评分配置模板（按答案类型映射指标）
+#
+# 使用方式：
+#   1. 在任务 YAML 中声明 answer_type: choice / number / list / text / reasoning
+#   2. 若任务 YAML 不写 metrics，自动使用此文件中对应 answer_type 的预设
+#   3. 若任务 YAML 写了 metrics，则显式配置优先（此文件作为 fallback）
+#
+# 命名约定：
+#   - primary_metric 使用计算器输出键的 **后缀**（不含 {name}_ 前缀）
+#     例：calc_numeric_error 输出 {name}_within_tol → primary_metric: within_tol
+#   - 这样无论 name 如何配置，build_score_card 都能模糊匹配到正确的键
 
 version: v1
 
@@ -11,15 +21,18 @@ normalization:
 
 scorers:
   choice:
-    primary_metric: exact_match
+    primary_metric: exact_match     # calc_exact_match → {name} 直接作为键
+    pass_threshold: 0.5
     metrics:
       - type: exact_match
         name: choice_acc
         pred_field: value
         label_field: value
+        normalize: true
 
   number:
-    primary_metric: value_within_tol
+    primary_metric: within_tol      # calc_numeric_error → {name}_within_tol
+    pass_threshold: 0.5
     metrics:
       - type: numeric_error
         name: value
@@ -28,7 +41,8 @@ scorers:
         tolerance: 0.01
 
   list:
-    primary_metric: list_f1
+    primary_metric: f1              # calc_list_overlap → {name}_f1
+    pass_threshold: 0.5
     metrics:
       - type: list_overlap
         name: list
@@ -37,14 +51,16 @@ scorers:
         normalize: true
 
   text:
-    primary_metric: rouge1
+    primary_metric: rouge1          # calc_reference_rouge → rouge1
+    pass_threshold: 0.3
     metrics:
       - type: reference_rouge
         output_field: value
         reference_field: gt_value
 
   reasoning:
-    primary_metric: final_answer_acc
+    primary_metric: final_answer_acc  # calc_exact_match → final_answer_acc
+    pass_threshold: 0.5
     metrics:
       - type: exact_match
         name: final_answer_acc

@@ -1,4 +1,11 @@
-"""I/O layer: persistent store, cache, and prompt loading."""
+"""
+I/O 层：运行产物持久化、缓存、Prompt 加载。
+
+模块概览：
+- store.py        : RunStore — 每次评测运行的全部文件产物管理
+- cache.py        : EvalCache — 基于 JSON 文件的持久化缓存
+- prompt_store.py : PromptStore — Jinja2 Prompt 模板懒加载
+"""
 
 from __future__ import annotations
 

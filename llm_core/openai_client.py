@@ -1,5 +1,14 @@
 """
-OpenAI 兼容 LLM 客户端 — 适用于 DeepSeek、Kimi、及所有 OpenAI 协议兼容端点
+OpenAI 兼容 LLM 客户端 — 适用于 DeepSeek、Kimi、及所有 OpenAI 协议兼容端点。
+
+基于 openai.AsyncOpenAI，支持参数：
+  model, temperature, max_tokens, top_p, stop, response_format, seed
+
+配合 base_client.BaseLLMClient 的重试机制：
+  RateLimitError   → 可重试（加长退避）
+  APITimeoutError  → 可重试（标准退避）
+  InternalServerError → 可重试
+  APIError         → 不可重试
 """
 
 import logging

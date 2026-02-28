@@ -1,4 +1,15 @@
-"""本地文件缓存：用于可复现评测与节省调用成本。"""
+"""本地文件缓存：用于可复现评测与节省 API 调用成本。
+
+缓存策略：
+- 缓存键 = SHA256(model_id + model_params + params + messages + sample_id)，
+  任何配置变更都会自动失效。
+- 仅缓存成功结果（success=True），错误响应不写入缓存。
+- 坐缓存文件损坏时按未命中处理，不中断评测流程。
+- 默认缓存目录：.eval_cache/，可通过 --cache-dir 覆盖。
+- --no-cache 模式下不创建缓存实例。
+
+线程安全：使用 RLock 保护文件读写，支持同一线程重入。
+"""
 
 from __future__ import annotations
 

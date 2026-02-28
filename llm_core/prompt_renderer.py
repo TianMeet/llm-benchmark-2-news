@@ -1,5 +1,16 @@
-"""
-通用 Prompt 渲染器 — Jinja2 模板加载与渲染（零业务依赖）
+"""通用 Prompt 渲染器 — Jinja2 模板加载与渲染（零业务依赖）。
+
+YAML 模板结构：
+  version: "v3"
+  system: "..."           # Jinja2 模板（不含行级变量，预编译缓存）
+  user: "..."             # Jinja2 模板（含 sample 字段变量）
+  few_shot_examples:      # 可选 few-shot 示例（预编译缓存）
+    - user: "..."
+      assistant: "..."
+
+输出格式：[{"role": "system", ...}, {"role": "user", ...}]
+性能优化：system prompt 和 few-shot 在实例化时预编译缓存，
+          仅 user prompt 每次渲染。
 """
 
 import logging

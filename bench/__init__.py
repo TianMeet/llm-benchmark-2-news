@@ -1,4 +1,20 @@
-"""量化新闻 LLM 评测中台（MVP）核心包。"""
+"""量化新闻 LLM 评测中台（MVP）核心包。
+
+包结构概览：
+  bench/
+  ├── contracts/    → 跨模块数据契约（ResultRow / ScoreCard / 异常层级）
+  ├── tasks/        → YAML 驱动的任务定义（GenericTask）
+  ├── execution/    → 调用网关 + task/workflow 执行器
+  ├── io/           → 运行产物存储、缓存、Prompt 加载
+  ├── metrics/      → 聚合统计
+  ├── task_metrics/ → 8 种指标计算器 + ScoringProfile
+  ├── reporting/    → Markdown 报告生成
+  ├── registry.py   → 模型注册表 + 成本估算
+  ├── workflow.py   → Workflow YAML/JSON 加载与校验
+  └── cli/runner.py → CLI 执行入口
+
+使用惰性导入（lazy import）避免 import bench 时拉入全部子模块。
+"""
 
 from __future__ import annotations
 

@@ -1,5 +1,15 @@
 """
-LLM 响应解析器 — 通用 JSON 提取 + 字段校验工具（零业务逻辑）
+LLM 响应解析器 — 通用 JSON 提取 + 字段校验工具（零业务逻辑）。
+
+多策略解析管线（按优先级）：
+  1. 全文直接解析/修复（json.loads → 单位归一化 → 注释移除 → 尾逗号 → Python 字面量回退）
+  2. Markdown fenced code block 提取后重复步骤 1
+  3. 括号平衡状态机提取首个完整 JSON 对象/数组
+
+失败分类（通过 JsonParseMeta.reason）：
+  ok / empty / truncated / invalid_json / non_string
+
+设计参考：docs/design/robust_json_parser.md
 """
 
 import ast

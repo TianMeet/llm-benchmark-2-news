@@ -1,5 +1,11 @@
-"""
-配置加载工具 — YAML 加载 + 环境变量解析 + provider 注册表（零业务依赖）
+"""配置加载工具 — YAML 加载 + 环境变量解析 + .env 自动加载（零业务依赖）。
+
+核心功能：
+- load_yaml(path)：加载 YAML 并递归解析 ${ENV_VAR}
+- load_provider_registry(path)：从模型注册表选取活跃模型配置
+- .env 加载：自实现（无第三方依赖），支持 `export KEY=VALUE` 和引号值
+- 环境变量解析：字符串中的 ${VAR} 替换为 os.environ[VAR]，
+  缺失时保留原始占位符（供下游检测报错）
 """
 
 import os

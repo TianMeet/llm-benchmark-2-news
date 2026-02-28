@@ -95,6 +95,15 @@ class GenericTask(EvalTask):
         # 映射结果叠加在原始 sample 之上（非破坏性），原字段保留。
         self._field_mapping: dict[str, str] = dict(cfg.get("field_mapping") or {})
 
+        # ── answer_type 支持 ──────────────────────────────────────
+        # 可选字段：配了走 scoring_profile 预设，没配走原始 metrics 列表
+        self._answer_type: str | None = cfg.get("answer_type")
+        from bench.task_metrics.profile import resolve_metrics
+        self._metrics_cfg = resolve_metrics(
+            answer_type=self._answer_type,
+            task_metrics_cfg=self._metrics_cfg,
+        )
+
         self._prompts: PromptStore | None = None
 
     def _resolve_sample(self, sample: dict[str, Any]) -> dict[str, Any]:

@@ -1,4 +1,15 @@
-"""Structured error taxonomy helpers for benchmark result rows."""
+"""结构化错误分类辅助模块。
+
+评测管线中的错误需要被归一化为 (error_type, error_stage, error_code) 三元组，
+以支持按类型聚合统计、报告中的失败分布表、以及错误根因分析。
+
+两个入口：
+- classify_error()：从错误文本关键词推断错误分类（兜底路径）。
+- derive_error_fields()：优先从结构化异常(EvalBenchError)提取，否则回退到文本分类。
+
+错误阶段(error_stage)枚举：
+  build_prompt → gateway → parse → metrics → upstream → unknown
+"""
 
 from __future__ import annotations
 
@@ -8,8 +19,13 @@ from typing import Any
 
 from bench.contracts.exceptions import EvalBenchError
 
+
 def classify_error(error_message: str) -> tuple[str, str, str]:
-    """Map raw error text to (error_type, error_stage, error_code)."""
+    """从错误文本关键词推断 (error_type, error_stage, error_code) 三元组。
+
+    这是兜底分类路径——当调用方没有传入结构化异常时使用。
+    关键词匹配顺序决定优先级：prompt > gateway > parse > metrics > upstream。
+    """
     text = (error_message or "").strip()
     lower = text.lower()
     if not text:

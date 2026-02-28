@@ -1,5 +1,12 @@
-"""
-管线性能计时器 — 复用于 ODS / DWD / DWS / ARCHIVE 管线
+"""管线性能计时器 — 复用于数据管线各层（ODS / DWD / DWS / ARCHIVE）。
+
+提供：
+- PipelineTimer.timed(name, func, *args)：执行步骤并记录耗时
+- PipelineTimer.add_step()：手动添加记录
+- PipelineTimer.print_summary()：输出性能汇总表
+
+注意：本工具主要用于数据采集/分析管线，评测中台自身的耗时统计
+通过 results.jsonl 中的 latency_ms 字段实现。
 """
 
 import logging

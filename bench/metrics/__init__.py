@@ -1,4 +1,8 @@
-"""Evaluation metric aggregation."""
+"""评测指标聚合层。
+
+将 results.jsonl 明细记录聚合为 summary.csv 汇总行。
+主入口：aggregate_records(records) -> list[dict]
+"""
 
 from __future__ import annotations
 

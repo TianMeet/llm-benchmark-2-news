@@ -1,4 +1,27 @@
-"""评测执行入口：支持单任务评测与多步 workflow 评测。"""
+"""评测执行 CLI 入口——支持单任务评测与多步 Workflow 评测。
+
+使用方式：
+  # 单任务
+  python -m bench.cli.runner --task news_analysis --dataset ... --models deepseek-chat --out runs/
+  # Workflow
+  python -m bench.cli.runner --workflow workflows/news_pipeline.yaml --dataset ... --out runs/
+
+执行流程：
+  1. 参数解析与校验
+  2. RunStore 初始化（runs/<timestamp>/ 目录）
+  3. 数据集加载 + 模型注册表解析
+  4. 写入 config / run_meta / dataset_fingerprint / model_snapshot
+  5. 调用 run_task_mode() 或 run_workflow_mode() 执行评测
+  6. aggregate_records() 聚合指标
+  7. 写入 summary.csv + 分区结果 + report.md
+
+支持功能：
+- --mock          离线模式（不触发真实 API）
+- --no-cache      禁用缓存
+- --resume-run-dir 断点续跑
+- --concurrency   task 模式并发控制
+- --workflow-concurrency  workflow 样本级并发
+"""
 
 from __future__ import annotations
 
@@ -51,6 +74,10 @@ async def run(args: argparse.Namespace) -> Path:
         store = RunStore(args.out, existing_run_dir=args.resume_run_dir)
     else:
         store = RunStore(args.out)
+    # ── 为本次 run 添加文件日志 handler，便于事后排查 ──────────────
+    from utils.logging_config import setup_logging
+    setup_logging(log_file=store.run_dir / "run.log")
+
     run_id = store.run_id
     dataset = load_dataset(args.dataset, max_samples=args.max_samples)
     registry = ModelRegistry(args.model_registry)
@@ -202,11 +229,19 @@ async def run(args: argparse.Namespace) -> Path:
     store.write_summary(summary_rows)
     store.write_partitioned_results(records)
     MarkdownReporter().generate(store.run_dir)
+    logger.info(
+        "Run completed: %s  records=%d  summary_rows=%d",
+        store.run_dir, len(records), len(summary_rows),
+    )
     return store.run_dir
 
 
 def main() -> None:
     """CLI 入口。"""
+    # ── 日志初始化（必须在 argparse 之前，这样参数解析错误也有日志格式） ──
+    from utils.logging_config import setup_logging
+    setup_logging()
+
     parser = argparse.ArgumentParser(description="LLM benchmark runner")
     parser.add_argument("--task", help="Task name, e.g. ie_json")
     parser.add_argument("--workflow", help="Workflow YAML/JSON path")

@@ -1,5 +1,7 @@
-"""
-Prompt 渲染器 — 业务版（继承 llm_core 通用版，添加新闻/股票业务逻辑）
+"""业务版 Prompt 渲染器 — 继承 llm_core 通用渲染器，添加新闻/股票业务逻辑。
+
+主要用于数据管线（如 DWS 层股票级综合分析），
+评测中台使用 bench/io/prompt_store.py + llm_core/prompt_renderer.py。
 """
 
 import logging

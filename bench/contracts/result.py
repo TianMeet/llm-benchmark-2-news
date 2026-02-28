@@ -1,4 +1,12 @@
-"""评测系统核心契约定义。"""
+"""评测系统核心契约定义。
+
+本模块定义了评测中台最核心的两个数据结构：
+- UnifiedCallResult：LLM 单次调用的标准化返回，由 LLMGateway 产出，runner 消费。
+- ResultRow：写入 results.jsonl 的完整结果行，包含样本/调用/解析/指标全部字段。
+
+设计原则：所有跨模块传递的结果数据都应使用这两个 dataclass，避免裸 dict 拼写错误。
+契约版本通过 schema_version 字段追踪，当前为 result_row.v1。
+"""
 
 from __future__ import annotations
 
@@ -10,7 +18,11 @@ from typing import Any
 
 @dataclass
 class UnifiedCallResult:
-    """统一的模型调用返回结构，供 runner/gateway/store 共享。"""
+    """统一的模型调用返回结构，供 runner/gateway/store 共享。
+
+    生命周期：LLMGateway.call() -> runner 消费 -> 缓存写入（仅 success=True）。
+    缓存恢复时 from_cache=True，此时 cost_estimate 应为 0。
+    """
 
     content: str
     usage: dict[str, int]

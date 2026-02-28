@@ -1,7 +1,20 @@
-"""指标计算函数库 — 从 GenericTask.metrics() 中提取，便于独立测试与复用。
+"""指标计算函数库 — 8 种指标计算器，由 GenericTask.metrics() 通过 compute_metric() 统一分发。
 
 每个 calc_* 函数接受 (rule, sample, parsed) 并返回 dict[str, Any]，
-GenericTask 通过 compute_metric() 统一分发。
+详细参数规范见 docs/eval_data_contract.md §2 指标类型详解。
+
+指标对应关系（与 unified_answer_contract.md 对齐）：
+  choice   -> exact_match
+  number   -> numeric_error (MAE + within_tolerance)
+  list     -> list_overlap  (precision / recall / f1)
+  text     -> reference_rouge (ROUGE-1 F1)
+  reasoning -> reasoning_consistency + claim_evidence_overlap
+
+公共辅助函数：
+- normalize_value()       : 标准化值（降低大小写/空白格式噪声）
+- safe_float()            : 尽力转为 float，不可转换返回 None
+- extract_text_fragments(): 递归提取文本片段
+- as_set_of_str()         : 将各类形态转为字符串集合
 """
 
 from __future__ import annotations

@@ -1,4 +1,17 @@
-"""多步 Workflow 评测执行器。"""
+"""多步 Workflow 评测执行器。
+
+处理多步骤流水线评测，如 news_pipeline.yaml 定义的：
+  step1_dedup → step2_extract → step3_score
+
+核心逻辑：
+1. 每个样本按步骤顺序执行，上游解析结果通过 step_outputs 传递。
+2. 上游失败时写入 skipped 记录并继续后续样本（不阻塞整个批次）。
+3. 每个样本完成后输出一行 e2e 汇总行，汇总总耗时/token/成本。
+4. 支持样本级并发（--workflow-concurrency），单样本内 step 仍顺序执行。
+5. 采用 FIRST_COMPLETED 流式回收，避免全量 gather 带来的 OOM 风险。
+
+模型解析优先级：CLI step_model_map > 步骤声明 > default_model_id（$active 回退）。
+"""
 
 from __future__ import annotations
 

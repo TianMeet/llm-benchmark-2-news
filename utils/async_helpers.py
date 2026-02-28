@@ -1,5 +1,6 @@
-"""
-异步辅助工具 — 在同步上下文中安全运行协程。
+"""异步辅助工具 — 与 llm_core/async_helpers.py 功能相同。
+
+保留此副本以兼容已有数据管线脚本的 `from utils.async_helpers import run_async` 引用。
 """
 
 import asyncio

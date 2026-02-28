@@ -1,7 +1,14 @@
 """报告器抽象与内置实现。
 
-Reporter 定义通用报告接口，内置提供 MarkdownReporter 实现。
-加入新承载形式（如 HTMLReporter）只需继承 Reporter 并覆盖 generate()。
+Reporter 定义通用报告接口，当前内置 MarkdownReporter。
+后续可扩展为 HTML、JSON 等多种输出格式，只需继承并覆写 generate()。
+
+MarkdownReporter 委托 bench/reporting/report.py 中的 generate_report() 实现，
+输出内容包括：
+- 总表（Model x Metric）
+- 按任务维度模型对比（含 tm_* 任务指标）
+- Workflow 维度概览
+- 失败类型分布 + 失败样本摘要（Top 5）
 """
 
 from __future__ import annotations

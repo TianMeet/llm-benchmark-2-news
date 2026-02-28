@@ -1,5 +1,13 @@
 """
-LLM 并发批量调用 — 公共函数
+LLM 并发批量调用 — Semaphore 控制并发度 + 延迟统计。
+
+主入口：call_llm_batch()
+- 按原始顺序返回结果（缺失位置用 _FAILED_SENTINEL 哨兵值填充）
+- 延迟分布概览（avg / p50 / p99 / min / max）
+- 支持外部传入预构建 client（避免重复创建）
+
+注意：在评测中台场景下，task_runner 和 workflow_runner 有各自的并发调度逻辑，
+本函数主要用于独立脚本或数据管线场景。
 """
 
 import asyncio

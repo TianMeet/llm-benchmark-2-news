@@ -1,5 +1,14 @@
 """
-LLM 客户端抽象基类 + 标准化响应数据类
+LLM 客户端抽象基类 + 标准化响应数据类。
+
+设计原则：
+- 子类只需实现 _do_complete()（单次 API 调用），重试逻辑由基类统一处理。
+- 重试策略：指数退避 + jitter，限流错误额外加 3s 延迟。
+- 错误分类（子类定义）：
+    RATE_LIMIT_ERRORS   : 可重试，加长退避
+    RETRYABLE_ERRORS    : 可重试，标准退避
+    NON_RETRYABLE_ERRORS: 不重试，直接返回失败
+- 全部重试用尽后返回 LLMResponse(success=False)，不抛异常。
 """
 
 import asyncio

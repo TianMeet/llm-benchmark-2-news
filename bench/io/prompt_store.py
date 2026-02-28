@@ -1,4 +1,11 @@
-"""Prompt 模板存储：按任务名懒加载模板渲染器。"""
+"""
+Prompt 模板存储器：按任务名懒加载 bench/prompts/*.yaml 模板。
+
+委托 llm_core.prompt_renderer.PromptRenderer 实现 Jinja2 渲染，
+本层仅负责模板文件发现与实例缓存，避免重复加载。
+
+模板目录默认：bench/prompts/，与模块物理位置解耦。
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,17 @@
-"""从运行产物生成 Markdown 报告。"""
+"""从运行产物生成 Markdown 报告。
+
+读取 runs/<id>/ 下的 summary.csv 和 results.jsonl，
+生成可读的 report.md。
+
+报告包含：
+1. 总表：所有模型 x 核心指标
+2. 按任务维度：模型横向对比（含 tm_* 任务指标）
+3. 按 Workflow 维度：步骤级 + 端到端汇总
+4. 失败类型分布表
+5. 失败样本摘要（前 5 条）
+
+也可独立运行：python -m bench.reporting.report --run_dir runs/<id>
+"""
 
 from __future__ import annotations
 

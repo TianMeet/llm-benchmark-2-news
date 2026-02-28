@@ -1,4 +1,17 @@
-"""单任务多模型评测执行器。"""
+"""单任务多模型评测执行器。
+
+执行流程：对每个 (model, sample, repeat) 组合：
+  1. build_prompt → 2. gateway.call → 3. parse → 4. metrics → 5. 落盘
+
+并发设计：
+- 每个模型独立 Semaphore，防止单模型触发限流。
+- 流式调度（限制 in-flight 协程数），用 FIRST_COMPLETED 回收，避免全量
+  asyncio.gather 导致的内存峰值。
+- 支持断点续跑（completed_keys 跳过已完成项）。
+
+错误处理：每个阶段的异常被包装为对应的 EvalBenchError 子类，
+通过 derive_error_fields() 归一化后写入 ResultRow。
+"""
 
 from __future__ import annotations
 

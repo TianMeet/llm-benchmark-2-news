@@ -1,4 +1,17 @@
-"""轻量 workflow 结构定义与加载器。"""
+"""轻量 Workflow 结构定义与加载器。
+
+支持多步任务编排，如 workflows/news_pipeline.yaml 中的：
+  step1_dedup(news_dedup) → step2_extract(ie_json) → step3_score(stock_score)
+
+核心特性：
+- 步骤间依赖通过 input_from 字段声明（"sample" 或上游 step id）
+- 加载时执行严格校验：step id 去重、input_from 引用校验、依赖图环检测 (DFS)
+- model_id 支持 $active 占位符，运行时由 CLI --models 解析
+- JSON / YAML 双格式支持
+
+值对象设计：WorkflowStep 和 WorkflowSpec 均为 frozen dataclass，
+加载后不可变，保证执行期间安全。
+"""
 
 from __future__ import annotations
 

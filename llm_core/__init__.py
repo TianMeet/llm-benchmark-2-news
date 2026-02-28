@@ -1,5 +1,22 @@
 """
-llm_core — 通用 LLM 调用基础设施（零业务逻辑）
+llm_core — 通用 LLM 调用基础设施（零业务逻辑）。
+
+本包提供与评测业务无关的 LLM 调用基础能力：
+
+核心模块：
+- base_client.py      : BaseLLMClient 抽象基类 + LLMResponse 数据类
+                        内置指数退避重试 + jitter，子类只需实现 _do_complete()
+- openai_client.py    : OpenAICompatibleClient — 适用于 DeepSeek/Kimi/所有 OpenAI 协议兼容端点
+- response_parser.py  : 鲁棒 JSON 解析器（多策略管线：全文 → 代码块 → 括号平衡）
+                        + 通用字段校验工具（str/list/enum/int_range）
+- prompt_renderer.py  : YAML 模板 + Jinja2 渲染（system/user/few_shot）
+- config.py           : YAML 加载 + ${ENV_VAR} 解析 + .env 自动加载
+- batch.py            : Semaphore 并发批量调用 + 延迟统计
+- async_helpers.py    : 同步上下文安全运行协程（兼容 Jupyter）
+
+Provider 注册表：
+- 新增 provider 只需向 _PROVIDER_REGISTRY 注册，符合开闭原则。
+- 当前已注册：openai_compatible / openai（别名）
 """
 
 from __future__ import annotations

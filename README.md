@@ -28,14 +28,29 @@
 
 所有 API Key 必须通过环境变量提供，不要写死。
 
-当前 `configs/llm_providers.yaml` 示例使用：
+### 模型注册表（JSON vs YAML）
 
-- `ANTHROPIC_AUTH_TOKEN`
+本项目提供两种格式的模型注册表，功能完全等价，可根据场景选择：
 
-示例：
+| 文件 | 适用场景 | 特点 |
+|------|---------|------|
+| `configs/llm_providers.json` | **评测/CI（默认）** | 机器优先，无注释，适合自动化 |
+| `configs/llm_providers.yaml` | **本地开发** | 人工优先，带中文注释，易维护 |
+
+**CLI 默认使用 JSON**，如需使用 YAML 请显式指定：
+```bash
+--model-registry configs/llm_providers.yaml
+```
+
+### 配置环境变量
+
+查看你选用的注册表中 `api_key: "${...}"` 的变量名，然后设置对应环境变量：
 
 ```bash
-export ANTHROPIC_AUTH_TOKEN="your_api_key"
+# 示例（根据实际注册表调整变量名）
+export MOONSHOT_API_KEY="your_key"
+export OPENAI_API_KEY="your_key"
+export DEEPSEEK_API_KEY="your_key"
 ```
 
 也支持在仓库根目录使用 `.env`（推荐本地开发）：
@@ -46,8 +61,6 @@ cp .env.example .env
 ```
 
 程序会自动读取 `.env`；`.env` 已在 `.gitignore` 中默认忽略，不会被提交。
-
-说明：请以你本地 `configs/llm_providers.yaml` 中 `api_key: "${...}"` 的变量名为准。
 
 ## 安装依赖
 
@@ -63,8 +76,7 @@ pip install -r requirements-dev.txt
 python -m bench.cli.runner --task ie_json --dataset datasets/demo_news.jsonl --models deepseek-chat,gpt-4o-mini --out runs/
 ```
 
-说明：`--models` 需填写你 `configs/llm_providers.json` 中实际存在的 `model_id`。
-默认模型注册表为 `configs/llm_providers.json`，若要使用 YAML 请显式传 `--model-registry configs/llm_providers.yaml`。
+说明：`--models` 需填写模型注册表中实际存在的 `model_id`。详见[环境变量](#环境变量)章节了解 JSON/YAML 两种注册表的区别。
 
 ### 2) workflow 多模型协作评测
 
@@ -81,7 +93,7 @@ python -m bench.cli.runner --workflow workflows/news_pipeline.yaml --dataset dat
 ### 3) 单独生成报告
 
 ```bash
-python -m eval.reporting.report --run_dir runs/{run_id}
+python -m bench.reporting.report --run_dir runs/{run_id}
 ```
 
 ### 4) 通用数据（带真实标签）评测

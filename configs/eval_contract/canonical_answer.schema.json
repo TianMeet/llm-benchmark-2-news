@@ -1,21 +1,23 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "CanonicalAnswer",
+  "description": "统一答案对象 — 将不同答案形态（选项/数值/列表/文本/推理）抽象为统一结构，支持跨任务可回归、可解释、可扩展。",
   "type": "object",
   "required": [
     "task_id",
     "sample_id",
     "answer_type",
     "prediction",
-    "ground_truth",
-    "meta"
+    "ground_truth"
   ],
   "properties": {
     "task_id": {
-      "type": "string"
+      "type": "string",
+      "description": "任务标识，对应任务 YAML 中的 name 字段"
     },
     "sample_id": {
-      "type": "string"
+      "type": "string",
+      "description": "样本唯一标识"
     },
     "answer_type": {
       "type": "string",
@@ -25,29 +27,39 @@
         "list",
         "text",
         "reasoning"
-      ]
+      ],
+      "description": "答案类型 — 决定从 scoring_profile 取哪个 scorer 预设"
     },
     "prediction": {
-      "type": "object"
+      "type": "object",
+      "description": "模型输出的标准化结构（由 parse_schema 解析后产生）"
     },
     "ground_truth": {
-      "type": "object"
+      "type": "object",
+      "description": "标注答案的标准化结构（来自数据集 gt_* 字段）"
     },
     "meta": {
       "type": "object",
+      "description": "版本与追踪信息",
       "required": [
-        "schema_version",
-        "scorer_version"
+        "schema_version"
       ],
       "properties": {
         "schema_version": {
-          "type": "string"
+          "type": "string",
+          "description": "答案结构版本"
         },
         "prompt_version": {
-          "type": "string"
+          "type": "string",
+          "description": "提示词版本"
         },
         "scorer_version": {
-          "type": "string"
+          "type": "string",
+          "description": "评分逻辑版本（可选，运行后回填）"
+        },
+        "pass_threshold": {
+          "type": "number",
+          "description": "门禁阈值（从 scoring_profile 中获取，记录于此便于回归比较）"
         }
       },
       "additionalProperties": true

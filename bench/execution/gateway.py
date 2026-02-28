@@ -1,4 +1,14 @@
-"""模型调用门面：封装真实调用、缓存与 mock 返回。"""
+"""模型调用门面：封装真实 API 调用、缓存与 mock 返回。
+
+这是评测系统与底层 LLM 服务之间的唯一接触点，责任包括：
+1. SHA256 缓存键生成（model + params + messages + sample_id）
+2. 缓存命中/写入（仅缓存成功结果，避免错误响应污染）
+3. 客户端连接池（相同 model_id + params 复用 client）
+4. Mock 模式（离线开发/CI 中不触发真实 API）
+5. 统一错误包装为 GatewayCallError
+
+显式抽象接口 ModelGateway 便于测试和后续插入新的调用策略。
+"""
 
 from __future__ import annotations
 

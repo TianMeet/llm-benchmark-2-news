@@ -1,4 +1,9 @@
-"""Shared lazy import helpers for package-level __getattr__ hooks."""
+"""惰性导入辅助工具 — 用于包级 __getattr__ 钩子。
+
+被 bench/ 和 llm_core/ 的各 __init__.py 使用，
+实现 import bench.xxx 时只导入实际访问的符号，
+避免拉入全部子模块（降低启动开销和循环引用风险）。
+"""
 
 from __future__ import annotations
 

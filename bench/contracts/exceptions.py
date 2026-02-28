@@ -1,4 +1,17 @@
-"""Structured exception hierarchy for benchmark pipeline."""
+"""评测管线结构化异常层级。
+
+所有评测专用异常都继承自 EvalBenchError，每个异常自带
+error_type / error_stage / error_code 三个元数据字段，
+用于在 ResultRow 和报告中做结构化错误聚合。
+
+异常层级：
+  EvalBenchError (base)
+  ├── PromptBuildError       → build_prompt 阶段
+  ├── GatewayCallError       → gateway/API 调用阶段
+  ├── ParseOutputError       → 输出解析阶段
+  ├── MetricsComputeError    → 指标计算阶段
+  └── UpstreamDependencyError → workflow 上游依赖缺失/解析失败
+"""
 
 from __future__ import annotations
 
@@ -13,7 +26,7 @@ __all__ = [
 
 
 class EvalBenchError(Exception):
-    """Base exception with stable error metadata."""
+    """评测管线基础异常，携带稳定的错误元数据 (type/stage/code)。"""
 
     def __init__(
         self,

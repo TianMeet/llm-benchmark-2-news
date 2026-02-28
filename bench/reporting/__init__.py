@@ -1,4 +1,8 @@
-"""Reporting layer."""
+"""报告层：从评测产物生成可读报告。
+
+- report.py   : generate_report() Markdown 报告生成逻辑
+- reporter.py : Reporter 抽象接口 + MarkdownReporter 实现
+"""
 
 from __future__ import annotations
 

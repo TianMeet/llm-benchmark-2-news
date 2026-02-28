@@ -114,3 +114,4 @@ python -m bench.cli.runner \
 1. 真实标签字段统一 `gt_` 前缀，减少任务迁移成本。
 2. 每次改提示词都提升 `prompt` 版本号，方便回归。
 3. 先用 `--mock --max-samples 3` 验证流程，再切真实模型。
+4. 数据字段要与任务契约匹配：`ie_json` 依赖 `news_items` 数组；如果数据是 `news_title/news_body`，建议使用 `news_analysis` 任务或新增映射任务。

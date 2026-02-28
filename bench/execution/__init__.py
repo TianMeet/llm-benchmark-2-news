@@ -1,4 +1,11 @@
-"""Execution layer: task/workflow runners and gateway."""
+"""执行层：模型调用网关、单任务执行器、Workflow 执行器。
+
+当前模块：
+- gateway.py         : LLMGateway (模型调用 + 缓存 + mock)
+- task_runner.py     : run_task_mode() 单任务多模型并发执行
+- workflow_runner.py : run_workflow_mode() 多步流水线执行
+- utils.py           : 共享常量与辅助函数
+"""
 
 from __future__ import annotations
 

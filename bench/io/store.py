@@ -1,4 +1,20 @@
-"""运行产物存储抽象（config/results/summary）。"""
+"""运行产物持久化存储层。
+
+负责每次评测 run 的全部文件产物管理：
+- config.json             : 本次运行配置快照
+- run_meta.json           : 运行环境元信息（git/python/platform）
+- dataset_fingerprint.json: 数据集 SHA256 指纹
+- model_snapshot.json     : 模型配置快照（已脱敏）
+- results.jsonl           : 逐条追加的样本级结果
+- summary.csv             : 聚合指标
+- by_model/<task>/<model>.jsonl : 按任务/模型分区的结果
+
+线程安全：append_result 使用 threading.Lock 保护，
+防止 asyncio + executor 场景下行内容交错写入。
+
+断点续跑：existing_run_dir 参数支持复用既有 run 目录，
+load_completed_keys() 加载已完成记录键。
+"""
 
 from __future__ import annotations
 
