@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import pytest
-from eval.contracts import UnifiedCallResult, ResultRow
+from eval.contracts.result import UnifiedCallResult, ResultRow
 
 
 # ── ResultRow 强类型契约 ──────────────────────────────────────────────

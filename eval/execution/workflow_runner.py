@@ -7,10 +7,10 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from eval.gateway import LLMGateway
+from eval.execution.gateway import LLMGateway
+from eval.execution.utils import RESULT_ROW_SCHEMA_VERSION
+from eval.io.store import RunStore
 from eval.registry import ModelRegistry, estimate_cost
-from eval.runner_utils import RESULT_ROW_SCHEMA_VERSION
-from eval.store import RunStore
 from eval.tasks import build_task
 from eval.workflow import WorkflowSpec
 

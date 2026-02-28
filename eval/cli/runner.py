@@ -1,10 +1,4 @@
-"""评测执行入口：支持单任务评测与多步 workflow 评测。
-
-此文件作为 CLI 入口与编排层，核心执行逻辑拆分为：
-- runner_utils.py    — 常量与共享辅助函数
-- runner_task.py     — 单任务多模型执行器
-- runner_workflow.py — 多步 workflow 执行器
-"""
+"""评测执行入口：支持单任务评测与多步 workflow 评测。"""
 
 from __future__ import annotations
 
@@ -14,17 +8,11 @@ import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-
 logger = logging.getLogger(__name__)
 
-from eval.cache import EvalCache
-from eval.gateway import LLMGateway
-from eval.metrics import aggregate_records
-from eval.registry import ModelRegistry
-from eval.reporter import MarkdownReporter
-from eval.runner_task import run_task_mode
-from eval.runner_utils import (
+from eval.execution.gateway import LLMGateway
+from eval.execution.task_runner import run_task_mode
+from eval.execution.utils import (
     RESULT_ROW_SCHEMA_VERSION,
     SCORER_VERSION,
     SUMMARY_ROW_SCHEMA_VERSION,
@@ -33,24 +21,17 @@ from eval.runner_utils import (
     parse_params,
     parse_workflow_models,
 )
-from eval.runner_workflow import run_workflow_mode
-from eval.store import RunStore
+from eval.execution.workflow_runner import run_workflow_mode
+from eval.io.cache import EvalCache
+from eval.io.store import RunStore
+from eval.metrics.aggregate import aggregate_records
+from eval.registry import ModelRegistry
+from eval.reporting.reporter import MarkdownReporter
 from eval.workflow import load_workflow
-
-# ── 向后兼容别名（供现有代码 from eval.runner import ... 使用） ──────────────
-_load_dataset = load_dataset
-_git_commit_hash = git_commit_hash
-_parse_params = parse_params
-_parse_workflow_models = parse_workflow_models
-_run_task_mode = run_task_mode
-_run_workflow_mode = run_workflow_mode
 
 __all__ = [
     "run",
     "main",
-    "RESULT_ROW_SCHEMA_VERSION",
-    "SUMMARY_ROW_SCHEMA_VERSION",
-    "SCORER_VERSION",
 ]
 
 

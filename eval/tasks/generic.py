@@ -56,7 +56,7 @@ from typing import Any
 
 import yaml
 
-from eval.prompt_store import PromptStore
+from eval.io.prompt_store import PromptStore
 from eval.task_metrics import (
     as_set_of_str,
     compute_metric,

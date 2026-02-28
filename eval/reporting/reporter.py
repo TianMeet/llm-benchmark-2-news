@@ -23,5 +23,5 @@ class MarkdownReporter(Reporter):
     """生成 Markdown 格式运行报告的内置实现。"""
 
     def generate(self, run_dir: str | Path) -> Path:
-        from eval.report import generate_report
+        from eval.reporting.report import generate_report
         return generate_report(run_dir)

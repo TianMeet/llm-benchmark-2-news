@@ -1,7 +1,7 @@
 import csv
 import json
 
-from eval.report import generate_report
+from eval.reporting.report import generate_report
 
 
 def test_generate_report(tmp_path) -> None:

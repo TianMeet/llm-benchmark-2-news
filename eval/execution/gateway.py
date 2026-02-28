@@ -10,8 +10,8 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict
 from typing import Any
 
-from eval.cache import EvalCache
-from eval.contracts import UnifiedCallResult
+from eval.contracts.result import UnifiedCallResult
+from eval.io.cache import EvalCache
 from eval.registry import ModelRegistry
 
 

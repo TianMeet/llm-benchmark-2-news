@@ -18,7 +18,7 @@ flowchart TB
     %% ─────────── 输入层 ───────────
     subgraph INPUT["  📥 INPUT — 输入层  "]
         direction LR
-        CLI["🖥️ CLI\npython -m eval.runner"]
+        CLI["🖥️ CLI\npython -m eval.cli.runner"]
         DS["📄 Dataset\n*.jsonl"]
         WF_YAML["📋 Workflow Spec\nnews_pipeline.yaml"]
         REG_YAML["⚙️ Model Registry\nllm_providers.yaml"]
@@ -154,7 +154,7 @@ sequenceDiagram
   participant S as RunStore
   participant A as API
 
-  U->>R: python -m eval.runner --workflow ...
+  U->>R: python -m eval.cli.runner --workflow ...
   R->>W: load_workflow()
   R->>S: write_config(config.json)
 

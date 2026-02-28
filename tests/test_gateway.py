@@ -1,6 +1,6 @@
 import asyncio
 
-from eval.gateway import LLMGateway
+from eval.execution.gateway import LLMGateway
 from eval.registry import ModelRegistry
 
 
@@ -140,7 +140,7 @@ def test_task_mock_response_ie_json_has_ticker_field() -> None:
 def test_gateway_mock_delegates_to_task_not_hardcoded() -> None:
     """P1: mock=True 时 gateway 应委托 task.mock_response()，不得在 gateway 内保留 if/elif 任务名判断。"""
     import inspect
-    from eval.gateway import LLMGateway
+    from eval.execution.gateway import LLMGateway
 
     source = inspect.getsource(LLMGateway._mock_response)
     # 修复后 gateway 内不应再有形如 task_name == "ie_json" 的硬编码

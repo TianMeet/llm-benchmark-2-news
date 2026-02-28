@@ -7,8 +7,8 @@ import threading
 
 import pytest
 
-from eval.cache import EvalCache
-from eval.store import RunStore
+from eval.io.cache import EvalCache
+from eval.io.store import RunStore
 
 
 # ─────────────────────────────────────────────────────────────────────────────

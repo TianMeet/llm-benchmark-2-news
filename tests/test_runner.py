@@ -20,12 +20,14 @@ from typing import Any
 
 import pytest
 
-from eval.contracts import UnifiedCallResult
-from eval.gateway import ModelGateway
-from eval.metrics import aggregate_records
+from eval.contracts.result import UnifiedCallResult
+from eval.cli.runner import run
+from eval.execution.gateway import ModelGateway
+from eval.execution.task_runner import run_task_mode as _run_task_mode
+from eval.execution.workflow_runner import run_workflow_mode as _run_workflow_mode
+from eval.metrics.aggregate import aggregate_records
 from eval.registry import ModelRegistry
-from eval.runner import _run_task_mode, _run_workflow_mode, run
-from eval.store import RunStore
+from eval.io.store import RunStore
 from eval.workflow import load_workflow
 from eval.workflow import WorkflowSpec, WorkflowStep
 
@@ -411,7 +413,7 @@ def test_workflow_skip_row_respects_task_parse_applicable(
             return _NoParseTask()
         return _real_build_task(task_name)
 
-    monkeypatch.setattr("eval.runner_workflow.build_task", _patched_build_task)
+    monkeypatch.setattr("eval.execution.workflow_runner.build_task", _patched_build_task)
 
     wf = WorkflowSpec(
         name="skip_parse_applicable_test",

@@ -1,4 +1,4 @@
-from eval.cache import EvalCache
+from eval.io.cache import EvalCache
 
 
 def test_cache_roundtrip(tmp_path) -> None:

@@ -90,7 +90,7 @@ metrics:
 ## 3. 运行方式
 
 ```bash
-python -m eval.runner \
+python -m eval.cli.runner \
   --task event_eval \
   --dataset datasets/your_data.jsonl \
   --models deepseek-v3 \

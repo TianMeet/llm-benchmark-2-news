@@ -9,7 +9,8 @@ class PromptStore:
     """从 `eval/prompts/*.yaml` 加载任务模板。"""
 
     def __init__(self, prompt_dir: str | Path | None = None):
-        self.prompt_dir = Path(prompt_dir or Path(__file__).resolve().parent / "prompts")
+        # 默认目录固定为 eval/prompts，与模块物理位置解耦。
+        self.prompt_dir = Path(prompt_dir or Path(__file__).resolve().parent.parent / "prompts")
         self._renderers: dict[str, object] = {}
 
     def render(self, template_name: str, **kwargs) -> tuple[list[dict], str]:

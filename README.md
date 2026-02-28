@@ -61,7 +61,7 @@ pip install -U openai pyyaml jinja2 pytest
 ### 1) 单任务多模型对比
 
 ```bash
-python -m eval.runner --task ie_json --dataset datasets/demo_news.jsonl --models deepseek-chat,gpt-4o-mini --out runs/
+python -m eval.cli.runner --task ie_json --dataset datasets/demo_news.jsonl --models deepseek-chat,gpt-4o-mini --out runs/
 ```
 
 说明：`--models` 需填写你 `configs/llm_providers.yaml` 中实际存在的 `model_id`。
@@ -69,19 +69,19 @@ python -m eval.runner --task ie_json --dataset datasets/demo_news.jsonl --models
 ### 2) workflow 多模型协作评测
 
 ```bash
-python -m eval.runner --workflow workflows/news_pipeline.yaml --dataset datasets/demo_news.jsonl --out runs/
+python -m eval.cli.runner --workflow workflows/news_pipeline.yaml --dataset datasets/demo_news.jsonl --out runs/
 ```
 
 可选并发（样本级并发，样本内 step 仍按顺序）：
 
 ```bash
-python -m eval.runner --workflow workflows/news_pipeline.yaml --dataset datasets/demo_news.jsonl --out runs/ --workflow-concurrency 4
+python -m eval.cli.runner --workflow workflows/news_pipeline.yaml --dataset datasets/demo_news.jsonl --out runs/ --workflow-concurrency 4
 ```
 
 ### 3) 单独生成报告
 
 ```bash
-python -m eval.report --run_dir runs/{run_id}
+python -m eval.reporting.report --run_dir runs/{run_id}
 ```
 
 ### 4) 通用数据（带真实标签）评测
@@ -139,6 +139,6 @@ pytest -q
 当本机没有安装 `openai/pyyaml` 或暂未配置 API Key 时，可先跑离线闭环验证：
 
 ```bash
-python -m eval.runner --task ie_json --dataset datasets/demo_news.jsonl --models deepseek-v3,doubao-seed --model-registry configs/llm_providers.json --out runs/ --mock --max-samples 3
-python -m eval.runner --workflow workflows/news_pipeline.json --dataset datasets/demo_news.jsonl --model-registry configs/llm_providers.json --out runs/ --mock --max-samples 3
+python -m eval.cli.runner --task ie_json --dataset datasets/demo_news.jsonl --models deepseek-v3,doubao-seed --model-registry configs/llm_providers.json --out runs/ --mock --max-samples 3
+python -m eval.cli.runner --workflow workflows/news_pipeline.json --dataset datasets/demo_news.jsonl --model-registry configs/llm_providers.json --out runs/ --mock --max-samples 3
 ```
